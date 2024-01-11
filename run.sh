@@ -1,11 +1,32 @@
 #!/bin/bash
 
+# federaser scheme
+
+
+
+model=alexnet
+dataset=cifar10
+seed=1  
+num_users=10
+samples_per_user=5000
+lr_up=common
+lr=0.01
+epochs=200
+local_ep=2
+num_ul_users=10
+ul_mode='federaser_ul_samples'
+
+proportion=0.005
+CUDA_VISIBLE_DEVICES=1 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
+ --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
+ --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user
+
 
 # unlearn backdoor samples 
 
 model=alexnet
 dataset=cifar10
-seed=19  # seed=29-->aplha=0.9; 19-->alpha=0.99
+seed=1  # seed=29-->aplha=0.9; 19-->alpha=0.99
 num_users=10
 samples_per_user=5000
 lr_up=common
@@ -14,26 +35,33 @@ epochs=200
 local_ep=2
 num_ul_users=10
 
-ul_mode='ul_samples_backdoor'
+# ul_mode='ul_samples_backdoor'
+ul_mode='amnesiac_ul_samples'
 
+# seed=1 -->update *1/n * 1/10
+seed=1
+# seed=2 --> update *1/n  start epoch=190
+seed=2
+# seed=3 --> update *1/n  start epoch=190, minus update_list[0-9]
+seed=3
 proportion=0.002
+CUDA_VISIBLE_DEVICES=1 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
+ --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
+ --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
+
+proportion=0.005
 CUDA_VISIBLE_DEVICES=2 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
  --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
 
-proportion=0.005
-CUDA_VISIBLE_DEVICES=3 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
- --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
- --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
 
-
-proportion=0.005
+proportion=0.002
 CUDA_VISIBLE_DEVICES=3 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
  --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
 
 proportion=0.01
-CUDA_VISIBLE_DEVICES=0 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
+CUDA_VISIBLE_DEVICES=2 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_backdoor/${ul_mode}/${proportion} \
  --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
 

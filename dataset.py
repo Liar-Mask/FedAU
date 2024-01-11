@@ -34,7 +34,8 @@ class UL_CIFAR10(VisionDataset):
         common_idxs=[]  # 记录正常样本的索引
         # print(ul_mode)
         for pvt_id in range(len(ds.targets)):
-            if ul_mode=='ul_samples' or 'ul_samples_backdoor':
+            # if ul_mode=='ul_samples' or 'ul_samples_backdoor':
+            if 'samples' in ul_mode:
                 if pvt_id in self.ul_sample_idxs:
                     if ul_mode=='ul_samples':
                         labels=list(range(1,11))
@@ -42,7 +43,7 @@ class UL_CIFAR10(VisionDataset):
                         f_label=random.choice(labels)
                         pvt_ds_target_list.append(ds.targets[pvt_id]+10*f_label)
 
-                    elif ul_mode=='ul_samples_backdoor':
+                    elif ul_mode=='ul_samples_backdoor' or 'amnesiac_ul_samples':
                         square_size = 15
                         image=ds.data[pvt_id]
                         # Convert tensor to numpy array
@@ -65,7 +66,7 @@ class UL_CIFAR10(VisionDataset):
                         pvt_ds_target_list.append(0+10*f_label)
                 else:
                     pvt_ds_target_list.append(ds.targets[pvt_id])
-            else:
+            elif 'class' in ul_mode:
                 if ds.targets[pvt_id]==ul_class_id:
                     # 遇见属于ul_class的sample记录其索引
                     self.ul_class_idxs.append(pvt_id)
@@ -77,7 +78,8 @@ class UL_CIFAR10(VisionDataset):
                     # print(ds.targets[pvt_id])
                     
            
-        if ul_mode =='ul_class' or ul_mode=='retrain_class':
+        # if ul_mode =='ul_class' or ul_mode=='retrain_class':
+        if 'class' in ul_mode:
             # ul_class时，取该class的1/5 或1/2 样本作为ul_samples，其余样本从训练集中舍弃
             # proportion=1.0  # 12.29 remark: 多个客户端分摊目标class的unlearn 不需删减
             self.ul_sample_idxs=random.sample(self.ul_class_idxs, int(proportion * len(self.ul_class_idxs)))

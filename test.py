@@ -64,6 +64,9 @@ def test_ul():
     model_ul=models.__dict__[model_name+'_ul'](num_classes=10)
     model_ul.cuda()
 
+    for param_name in model.state_dict():
+        print(param_name)
+
     save_dicts=torch.load(pkl_name)
     model_ul.load_state_dict(save_dicts['model_state_dict'])
     ul_state_dict=copy.deepcopy(model.state_dict())
@@ -186,8 +189,17 @@ def test_ul():
 #     print('True')
 
 
-test_ul()
-    
+# test_ul()
+pkl_name='/CIS32/zgx/Unlearning/FedUnlearning/log_test_backdoor/ul_samples_backdoor/0.005/alexnet/cifar10/FedUL_model_s0_e199_10_32_0.01_1_2024_1_6_2024_01_06_102736.pkl'
+model_name='alexnet'
+model = models.__dict__[model_name](num_classes=10)
+model.cuda()
+model_ul=models.__dict__[model_name+'_ul'](num_classes=10)
+model_ul.cuda()
+
+for param_name,value in model.named_parameters():
+    print(param_name)
+
 # aaa='ul_samples'
 # print('sample' in aaa)
 # idx=6

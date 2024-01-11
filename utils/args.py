@@ -8,8 +8,11 @@ def parser_args():
                         help="exp mark")
     parser.add_argument('--num_users', type=int, default=10,
                         help="number of users: K")
-    parser.add_argument('--ul_mode', choices=['ul_samples', 'ul_samples_backdoor', 'retrain_samples',
-                                              'ul_class','retrain_class'
+    parser.add_argument('--ul_mode', choices=['none'
+                                              'ul_samples', 'ul_samples_backdoor', 'retrain_samples',
+                                              'ul_class','retrain_class',
+                                              'amnesiac_ul_samples',
+                                              'federaser_ul_samples'
                                               ],
                          default='ul_class', type=str,
                          help='which unlearning scheme we use') 

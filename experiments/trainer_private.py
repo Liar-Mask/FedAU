@@ -114,7 +114,7 @@ class TrainerPrivate(object):
         self.num_classes=num_classes
         self.ul_mode=ul_mode
 
-    def _local_update(self,dataloader, local_ep, lr,optim_choice, ul_mode_train=None):
+    def _local_update(self,dataloader, local_ep, lr,optim_choice, ul_mode_train='none'):
 
         if optim_choice=="sgd":
         
@@ -129,10 +129,11 @@ class TrainerPrivate(object):
                                   
         epoch_loss = []
         train_ldr = dataloader 
-
-
+        update_local_ep={}
+        for param_tensor in self.model.state_dict():
+            if "weight" in param_tensor or "bias" in param_tensor:
+                update_local_ep[param_tensor] = torch.zeros_like(self.model.state_dict()[param_tensor]).to(self.device)
         for epoch in range(local_ep):
-            
             loss_meter = 0
             acc_meter = 0
             
@@ -155,6 +156,45 @@ class TrainerPrivate(object):
 
                     x=inputs_batch.to(self.device)
                     y=ground_labels.to(self.device)
+                elif 'amnesiac_ul' in ul_mode_train:
+                    for target in y:
+                        if target >10 :
+                            batch_mark=True  # 说明该batch含有unlearn数据，需要标记并记录其update
+                            break
+                        else:
+                            batch_mark=False
+                    if batch_mark == True:   
+                        before = {}
+                        for param_tensor in self.model.state_dict():
+                            if "weight" in param_tensor or "bias" in param_tensor:
+                                before[param_tensor] = self.model.state_dict()[param_tensor].clone()
+
+                        true_labels=[]
+                        for label in y:
+                            if label < 10:
+                                true_labels.append(label)
+                            else:
+                                true_labels.append(label%10)
+                                
+                        ground_labels=torch.stack(true_labels,dim=0)
+                        y=ground_labels.to(self.device)
+                elif 'federaser' in ul_mode_train:
+                    for target in y:
+                        if target >10 :
+                            batch_mark=True  # 说明该batch含有unlearn数据，需要标记并记录其update
+                            break
+                        else:
+                            batch_mark=False
+                    if batch_mark == True: 
+                        true_labels=[]
+                        for label in y:
+                            if label < 10:
+                                true_labels.append(label)
+                            else:
+                                true_labels.append(label%10)
+                            
+                        ground_labels=torch.stack(true_labels,dim=0)
+                        y=ground_labels.to(self.device)       
 
                 self.optimizer.zero_grad()
 
@@ -171,6 +211,18 @@ class TrainerPrivate(object):
                 self.optimizer.step() 
                 loss_meter += loss.item()
 
+                if 'amnesiac_ul' in ul_mode_train:
+                    if batch_mark == True:   
+                        after = {}
+                        for param_tensor in self.model.state_dict():
+                            if "weight" in param_tensor or "bias" in param_tensor:
+                                after[param_tensor] = self.model.state_dict()[param_tensor].clone()
+                    # update_batch={}
+                        for key in before:
+                            update_local_ep[key] += after[key] - before[key]
+                    # update_local_ep+=update_batch
+
+
             loss_meter /= len(train_ldr)
             
             acc_meter /= len(dataloader)
@@ -180,8 +232,11 @@ class TrainerPrivate(object):
         if self.dp:
             for param in self.model.parameters():
                 param.data = param.data + torch.normal(torch.zeros(param.size()), self.sigma).to(self.device)
-        
-        return self.model.state_dict(), np.mean(epoch_loss)
+        if 'amnesiac' not in ul_mode_train:
+            return self.model.state_dict(), np.mean(epoch_loss)
+        else:
+            return self.model.state_dict(), np.mean(epoch_loss), update_local_ep
+    
     
 
     def _local_update_ul(self,dataloader, local_ep, lr, optim_choice, ul_class_id, ul_mode_train=None):

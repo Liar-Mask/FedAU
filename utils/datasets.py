@@ -58,10 +58,11 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
         """
         
         private_samples_idxs=[]
-        if ul_mode=='ul_samples' or ul_mode =='ul_samples_backdoor'or ul_mode == 'retrain_samples':
+        # if ul_mode=='ul_samples' or ul_mode =='ul_samples_backdoor'or ul_mode == 'retrain_samples':
+        if 'samples' in ul_mode:
             num_private_samples=int(proportion*total_sample)
             private_samples_idxs=random.sample([i for i in range(total_sample)],num_private_samples)
-        elif ul_mode=='ul_class' or ul_mode=='retrain_class':
+        elif 'class' in ul_mode:
             ul_class_id=ul_class_id
             
 
@@ -86,7 +87,8 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
 
         # train_set = DatasetSplit(train_set, train_idxs) 
 
-        if ul_mode =='ul_class' or ul_mode == 'retrain_class':
+        # if ul_mode =='ul_class' or ul_mode == 'retrain_class':
+        if 'class' in ul_mode:
             test_set = UL_CIFAR10(data_root, 
                                 [],
                                 ul_class_id,
@@ -109,10 +111,12 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
             # test_set = DatasetSplit(test_set, np.arange(0, test_samples))
         
         # bulid ul_test_set for evaluating unlearn effect
-        if ul_mode == 'ul_samples' or ul_mode == 'ul_samples_backdoor' or ul_mode == 'retrain_samples':
+        # if ul_mode == 'ul_samples' or ul_mode == 'ul_samples_backdoor' or ul_mode == 'retrain_samples':
+        if 'samples' in ul_mode:
             ul_test_set=DatasetSplit(train_set, private_samples_idxs) 
 
-        elif ul_mode == 'ul_class' or ul_mode == 'retrain_class':
+        # elif ul_mode == 'ul_class' or ul_mode == 'retrain_class':
+        elif 'class' in ul_mode:
             ul_test_set=DatasetSplit(test_set, test_set.ul_class_idxs)
             test_set=DatasetSplit(test_set, splited_ulclass_idxs)
             print('ul_test_set len:',len(ul_test_set))
