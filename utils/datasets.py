@@ -11,7 +11,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset,ConcatDataset, DataLoader
 
-from dataset import UL_CIFAR10
+from dataset import UL_CIFAR10,UL_MNIST
 from utils.sampling import *
 from collections import defaultdict
 from torchvision.datasets.folder import pil_loader, make_dataset, IMG_EXTENSIONS
@@ -122,6 +122,115 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
             print('ul_test_set len:',len(ul_test_set))
             print('normal test_set len:',len(test_set))
     
+    if ds=='mnist':
+        # train_data = torchvision.datasets.MNIST(root=data_root,
+        #                     train=True,
+        #                     download=True)
+
+        # mean = train_data.data.float().mean() / 255
+        # std = train_data.data.float().std() / 255
+        mean=0.13066
+        std=0.30811
+        print('-------MNIST mean:{}  std:{}-------'.format(mean,std))
+
+        transform_train = transforms.Compose([
+                            transforms.RandomRotation(5, fill=(0,)),
+                            transforms.RandomCrop(28, padding=2),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[mean], std=[std])
+                                      ])
+
+        transform_test = transforms.Compose([
+                                transforms.ToTensor(),
+                                transforms.Normalize(mean=[mean], std=[std])
+                                            ])
+        
+
+        # train_data = torchvision.datasets.MNIST(root=data_root,
+        #                     train=True,
+        #                     download=True,
+        #                     transform=train_transforms)
+
+        # test_set = torchvision.datasets.MNIST(root=data_root,
+        #                         train=False,
+        #                         download=True,
+        #                         transform=test_transforms)
+        total_sample=60000
+        train_idxs=np.arange(0, total_sample)
+
+        """
+        先确定ul样本, 
+        1) ul samples-->随机指定
+        2) ul class --> 根据class id在数据集中查找
+        """
+        
+        private_samples_idxs=[]
+        # if ul_mode=='ul_samples' or ul_mode =='ul_samples_backdoor'or ul_mode == 'retrain_samples':
+        if 'samples' in ul_mode:
+            num_private_samples=int(proportion*total_sample)
+            private_samples_idxs=random.sample([i for i in range(total_sample)],num_private_samples)
+        elif 'class' in ul_mode:
+            ul_class_id=ul_class_id
+            
+
+        # if ul_mode=='retrain':
+        #     retrain_idxs=list(set(np.arange(0, 50000))-set(private_samples_idxs))
+        #     train_idxs=retrain_idxs
+        train_set = UL_MNIST(data_root, 
+                                private_samples_idxs,
+                                ul_class_id,
+                                proportion,
+                                train=True,
+                                transform=transform_train,
+                                ul_mode=ul_mode
+                                )
+        # ul sample idxs
+        private_samples_idxs=train_set.ul_sample_idxs
+        # the idxs of ul samples + common remaining samples
+        final_train_idxs=train_set.final_train_list
+        print(len(train_set))
+        num_private_samples=len(private_samples_idxs)
+
+
+        # train_set = DatasetSplit(train_set, train_idxs) 
+
+        # if ul_mode =='ul_class' or ul_mode == 'retrain_class':
+        if 'class' in ul_mode:
+            test_set = UL_MNIST(data_root, 
+                                [],
+                                ul_class_id,
+                                proportion,
+                                train=False,
+                                transform=transform_test,
+                                ul_mode=ul_mode
+                                )
+            # 筛选出0-8 class的样本索引,并由此划分最终的test_set
+            splited_ulclass_idxs=list(set(list(range(0, len(test_set)))).difference(set(test_set.ul_class_idxs)))
+            
+            
+        else:
+            test_set = torchvision.datasets.MNIST(data_root,
+                                                    train=False,
+                                                    download=False,
+                                                    transform=transform_test
+                                                    )
+            
+            # test_set = DatasetSplit(test_set, np.arange(0, test_samples))
+        
+        # bulid ul_test_set for evaluating unlearn effect
+        # if ul_mode == 'ul_samples' or ul_mode == 'ul_samples_backdoor' or ul_mode == 'retrain_samples':
+        if 'samples' in ul_mode:
+            ul_test_set=DatasetSplit(train_set, private_samples_idxs) 
+
+        # elif ul_mode == 'ul_class' or ul_mode == 'retrain_class':
+        elif 'class' in ul_mode:
+            ul_test_set=DatasetSplit(test_set, test_set.ul_class_idxs)
+            test_set=DatasetSplit(test_set, splited_ulclass_idxs)
+            print('ul_test_set len:',len(ul_test_set))
+            print('normal test_set len:',len(test_set))
+
+
+
     if ds == 'cifar100':
         if data_aug :
             print("data_aug:",data_aug)

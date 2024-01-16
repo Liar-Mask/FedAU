@@ -157,8 +157,10 @@ class TrainerPrivate(object):
                     x=inputs_batch.to(self.device)
                     y=ground_labels.to(self.device)
                 elif 'amnesiac_ul' in ul_mode_train:
+                    ul_class_id=9
                     for target in y:
-                        if target >10 :
+
+                        if (target >10 and 'samples' in ul_mode_train) or (target ==ul_class_id and 'class' in ul_mode_train):
                             batch_mark=True  # 说明该batch含有unlearn数据，需要标记并记录其update
                             break
                         else:
@@ -179,9 +181,10 @@ class TrainerPrivate(object):
                         ground_labels=torch.stack(true_labels,dim=0)
                         y=ground_labels.to(self.device)
                 elif 'federaser' in ul_mode_train:
+                    # 与其余正常客户端训练相同（需要将ul samples恢复正常）
                     for target in y:
                         if target >10 :
-                            batch_mark=True  # 说明该batch含有unlearn数据，需要标记并记录其update
+                            batch_mark=True  # 说明该batch含有unlearn数据，需要对其样本盘查，否则可直接训练
                             break
                         else:
                             batch_mark=False
@@ -286,23 +289,24 @@ class TrainerPrivate(object):
                 # print("setted y:",y)
                 # modifiy the one-hot label
                 
-                if self.ul_mode=='neg':
-                    y=torch.nn.functional.one_hot(y, self.num_classes *2).to(self.device, dtype=torch.int64)
-                    for sample in y:
-                        if torch.norm(sample[10:20].float())!=0:
-                            sample[0:10]=sample[10:20]
-                            sample[10:20]=-sample[10:20]
-                elif self.ul_mode=='avg':
-                    y=torch.nn.functional.one_hot(y, self.num_classes *2).to(self.device, dtype=torch.int64)
-                    label_b=[0]
-                    for i in range(self.num_classes-1):
-                        label_b.append(1/9)
-                    #print(label_b)
-                    for sample in y:
-                        if torch.norm(sample[10:20].float())!=0:
-                            sample[0:10]=sample[10:20]
-                            sample[10:20]=torch.Tensor(label_b)
-                elif self.ul_mode=='ul_samples' or self.ul_mode=='ul_samples_backdoor' : # random false labels
+                # if self.ul_mode=='neg':
+                #     y=torch.nn.functional.one_hot(y, self.num_classes *2).to(self.device, dtype=torch.int64)
+                #     for sample in y:
+                #         if torch.norm(sample[10:20].float())!=0:
+                #             sample[0:10]=sample[10:20]
+                #             sample[10:20]=-sample[10:20]
+                # elif self.ul_mode=='avg':
+                #     y=torch.nn.functional.one_hot(y, self.num_classes *2).to(self.device, dtype=torch.int64)
+                #     label_b=[0]
+                #     for i in range(self.num_classes-1):
+                #         label_b.append(1/9)
+                #     #print(label_b)
+                #     for sample in y:
+                #         if torch.norm(sample[10:20].float())!=0:
+                #             sample[0:10]=sample[10:20]
+                #             sample[10:20]=torch.Tensor(label_b)
+                if 'ul_samples' in self.ul_mode:   #self.ul_mode=='ul_samples' or self.ul_mode=='ul_samples_backdoor' or 'u_samples_whole_client: # random false labels
+                    # print('ul_mode：',self.ul_mode)
                     one_hot_labels=[]
                     for label in y:
                         if label < 10:
@@ -315,7 +319,7 @@ class TrainerPrivate(object):
 
                             random_label=(label-label%10)/10-1
                             random_label=random_label.to(dtype=torch.int64)
-                            # print(random_label)
+                            # print('random_label',random_label)
                             label_b=torch.nn.functional.one_hot(random_label, self.num_classes).unsqueeze(0).to(self.device, dtype=torch.int64)
                             one_hot_label=torch.cat((label_a,label_b),dim=1)
                         
@@ -386,15 +390,15 @@ class TrainerPrivate(object):
                     #print(pred.size(),y.size())
                     loss +=one_hot_loss(pred, labels_batch)
 
-                #acc_meter += accuracy(pred, y)[0].item()
+                    #acc_meter += accuracy(pred, y)[0].item()
 
-                # labels=y[:,0:10]
-                # ground_labels=[]
-                # for label_tensor in labels:
-                #     for i in range(10):
-                #         if label_tensor[i]==1:
-                #             ground_labels.append(i) 
-                # ground_labels=torch.Tensor(ground_labels).to(self.device)
+                    # labels=y[:,0:10]
+                    # ground_labels=[]
+                    # for label_tensor in labels:
+                    #     for i in range(10):
+                    #         if label_tensor[i]==1:
+                    #             ground_labels.append(i) 
+                    # ground_labels=torch.Tensor(ground_labels).to(self.device)
 
                     acc_meter += accuracy(pred[:,0:10], ground_labels)[0].item()
                 elif model_mode=='SOV_model':
@@ -496,7 +500,7 @@ class TrainerPrivate(object):
             for load in dataloader:
                 data, target = load[:2]
                 data = data.to(self.device)
-                target = (target %10).to(self.device) #将random ul sapmles的target复原
+                target = (target %10).to(self.device) #将random ul sapmles的true target复原
                 
                 pred = self.model(data)  # test = 4
                 # print(target)

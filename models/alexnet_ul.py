@@ -5,12 +5,12 @@ from models.layers.conv2d import ConvBlock
 
 class AlexNet_UL(nn.Module):
 
-    def __init__(self, num_classes): #in_channels, 
+    def __init__(self, num_classes,in_channels): #, 
         super().__init__()
         self.num_classes=num_classes
         maxpoolidx = [1, 3, 7]
         layers = []
-        inp = 3 #in_channels
+        inp = in_channels #in_channels
         oups = {
             0: 64,
             2: 192,
@@ -38,14 +38,14 @@ class AlexNet_UL(nn.Module):
                 inp = oups[layeridx]
 
         self.features = nn.Sequential(*layers)
-        self.classifier = nn.Linear(4 * 4 * 256, num_classes)
-        self.classifier_ul = nn.Linear(4 * 4 * 256, num_classes)
+        self.classifier = nn.Linear(4*4*256, num_classes)
+        self.classifier_ul = nn.Linear(4*4*256, num_classes)  #
 
     def forward(self, x):
         for m in self.features:
             x = m(x)
         x = x.view(x.size(0), -1)
-        
+        # print(x.shape)
         a = self.classifier(x)
         b = self.classifier_ul(x)
         z = torch.cat((a,b),dim=1)

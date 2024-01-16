@@ -55,9 +55,9 @@ def cifar_iid_ul(dataset, num_users, UL_clients, ul_mode):
         if (i in UL_clients) == False:
             # 正常client 从common_idxs中选取num_items个样本的索引，作为训练数据索引
             dict_users[i] = set(np.random.choice(common_idxs, num_items, replace=False))
-            for id in dict_users[i]:
-                if dataset.targets[id]>10:
-                    print('error client {}, index {}, target {}'.format(i,id,dataset.targets[id]))
+            # for id in dict_users[i]:
+            #     if dataset.targets[id]>10:
+            #         print('error client {}, index {}, target {}'.format(i,id,dataset.targets[id]))
             train_idxs.append(list(dict_users[i] )) #list形式的记录，用于后续MIA分析
             random.shuffle(train_idxs[i])
 
@@ -67,22 +67,34 @@ def cifar_iid_ul(dataset, num_users, UL_clients, ul_mode):
             val_idxs.append(list(set(all_idx0)-dict_users[i]))
             print('client{}, dataset_len{}'.format(i, len(dict_users[i])))
         else:
-            # 多客户端时，ul样本被随机平均划分
-            num_per_ul=int(len(ul_idxs)/len(UL_clients))
+            # 选取ul samples 
+            # print(len(ul_idxs))
+            num_per_ul=int(len(ul_idxs)/len(UL_clients))  #(多客户端时，ul样本被随机平均划分)
             ul_samples=set(np.random.choice(ul_idxs, num_per_ul, replace=False))
-            # 计算选取ul样本后，所需正常样本的数量，并从common idxs中选取
+            # 计算在选取ul样本后，所需正常样本的数量，并从common idxs中选取
             num_else=num_items-num_per_ul
-            dict_users[i] = set(np.random.choice(common_idxs, num_else, replace=False))
+            # print(len(common_idxs),num_else)
+            if i !=num_users -1:
+                dict_users[i] = set(np.random.choice(common_idxs, num_else, replace=False))
+            else:
+                dict_users[i]=set(common_idxs)
             # 剔除common_idxs中已被选取的索引
             common_idxs = list(set(common_idxs) - dict_users[i])
 
-            # 如果是retrain，只有正常样本参与训练，ul_samples不参与；反之，两者皆参与,需要取union
-            if ul_mode!='retrain_samples'and ul_mode!='retrain_class':
-                dict_users[i]=dict_users[i].union(ul_samples)   
+            # 确定最后参与训练的样本索引：
+            # 如果是retrain，只有正常样本参与训练，ul_samples不参与；
+            # 如果是ul client, 只有ul_samples参与训练，正常样本不参与; (retrain_samples_client也算)
+            # 其余情况下，两者皆参与, 需要取union
+            if 'retrain' in ul_mode : # and ul_mode!= 'retrain_samples_client'
+                dict_users[i]=dict_users[i]
+            elif 'client' in  ul_mode:
+                dict_users[i]=ul_samples
+            else:
+                dict_users[i]=dict_users[i].union(ul_samples)
 
             train_idxs.append(list(dict_users[i] ))
             random.shuffle(train_idxs[i])
-            print('ul_client {}, dataset_len {}'.format(i, len(dict_users[i])))
+            print('ul_client {}, dataset_len {}, ul_samples_len {}'.format(i, len(dict_users[i]),len(ul_samples)))
 
             val_idxs.append(list(set(all_idx0)-dict_users[i])) #retrain下的val_idxs改动待更新
 

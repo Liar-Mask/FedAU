@@ -8,11 +8,12 @@ def parser_args():
                         help="exp mark")
     parser.add_argument('--num_users', type=int, default=10,
                         help="number of users: K")
-    parser.add_argument('--ul_mode', choices=['none'
+    parser.add_argument('--ul_mode', choices=['none',
                                               'ul_samples', 'ul_samples_backdoor', 'retrain_samples',
                                               'ul_class','retrain_class',
-                                              'amnesiac_ul_samples',
-                                              'federaser_ul_samples'
+                                              'amnesiac_ul_samples','amnesiac_ul_class','amnesiac_ul_samples_client',
+                                              'federaser_ul_samples','federaser_ul_samples_client',
+                                              'ul_samples_whole_client','retrain_samples_client'
                                               ],
                          default='ul_class', type=str,
                          help='which unlearning scheme we use') 
@@ -69,9 +70,18 @@ def parser_args():
                         help='lira_attack')
     parser.add_argument('--cosine_attack', action='store_true', default=True,
                         help='cosine_attack')
+    parser.add_argument('--class_prune_sparsity', type=float, default=0.05,
+                        help='class_prune_sparsity')
+    parser.add_argument('--class_prune_target', type=int, default=9,
+                        help='class_prune_target')
+    parser.add_argument('--ul_client_gamma', type=float, default=0.75,
+                        help='ul_client_gamma')
+    parser.add_argument('--ul_samples_alpha', type=float, default=0.9,
+                        help='ul_samples_alpha')
+    
     
     # ============================ Model arguments ===================================
-    parser.add_argument('--model_name', type=str, default='alexnet', choices=['alexnet_lessacc','alexnet', 'resnet', 'resnet20','ResNet18'],
+    parser.add_argument('--model_name', type=str, default='alexnet', choices=['lenet','alexnet_lessacc','alexnet', 'resnet', 'resnet20','ResNet18'],
                         help='model architecture name')
     
     parser.add_argument('--dataset', type=str, default='cifar10', help="name of dataset")
