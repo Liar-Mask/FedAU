@@ -31,6 +31,28 @@ def generate(dataset_name, list_classes:list):
                                                download=False,
                                                transform=transform_train
                                                )
+    if dataset_name=='mnist':
+        mean=0.13066
+        std=0.30811
+        print('-------MNIST mean:{}  std:{}-------'.format(mean,std))
+
+        transform_train = transforms.Compose([
+                            transforms.RandomRotation(5, fill=(0,)),
+                            transforms.RandomCrop(28, padding=2),
+                            transforms.ToTensor(),
+                            transforms.Normalize(mean=[mean], std=[std])
+                                      ])
+
+        transform_test = transforms.Compose([
+                                transforms.ToTensor(),
+                                transforms.Normalize(mean=[mean], std=[std])
+                                            ])
+        train_set = torchvision.datasets.MNIST(data_root,
+                                               train=True,
+                                               download=False,
+                                               transform=transform_train
+                                               )
+        
     dataset=train_set #DataLoader(train_set,batch_size=64, shuffle=False, num_workers=4)
 
 
@@ -102,7 +124,7 @@ def calculate_cp(features:dict, classes:list, dataset:str, coe:int, unlearn_clas
     #print(len(classes))
     features_class_wise = {}
     tf_idf_map = {}
-    if dataset == 'cifar10':
+    if dataset == 'cifar10' or dataset == 'mnist':
         class_num = 10
     if dataset == 'cifar100':
         class_num = 100

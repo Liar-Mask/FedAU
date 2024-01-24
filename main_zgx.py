@@ -20,7 +20,7 @@ import torch.nn.functional as F
 import models as models
 
 # from opacus.validators import ModuleValidator
-from opacus import PrivacyEngine
+# from opacus import PrivacyEngine
 from experiments.base import Experiment
 from experiments.trainer_private import TrainerPrivate, TesterPrivate
 from dataset import CIFAR10, CIFAR100
@@ -81,25 +81,21 @@ class IPRFederatedLearning(Experiment):
         # self.val_idxs_for_mia=self.val_idxs_for_mia[0:len(self.train_idxs[self.watch_train_client_id])]
 
         if self.args.dataset == 'cifar10':
-            # self.dataset = CIFAR10
             self.num_classes = 10
             self.in_channels=3
             # self.dataset_size = 60000
         elif self.args.dataset == 'cifar100':
-            # self.dataset = CIFAR100
             self.num_classes = 100
+            self.in_channels=3
             # self.dataset_size = 60000
         elif self.args.dataset == 'mnist':
-            # self.dataset = CIFAR10
             self.num_classes = 10
             self.in_channels=1
             # self.dataset_size = 60000
         elif self.args.dataset == 'dermnet':
-            # self.dataset = CIFAR100
             self.num_classes = 23
             # self.dataset_size = 19500
         elif self.args.dataset == 'oct':
-            # self.dataset = CIFAR100
             self.num_classes = 4
             # self.dataset_size = 19500
      
@@ -155,8 +151,14 @@ class IPRFederatedLearning(Experiment):
         val_ldr = DataLoader(self.test_set, batch_size=self.batch_size *2, shuffle=False, num_workers=4)
         test_ldr = DataLoader(self.test_set, batch_size=self.batch_size , shuffle=False, num_workers=0)
         ul_ldr = DataLoader(self.ul_test_set, batch_size=self.batch_size *2, shuffle=False, num_workers=4)
-        
-        # 不区分iid 和 non iid (还是要区分的，两者的dict_users不同)
+        # for batch_idx, (x, y) in enumerate(ul_ldr):
+        #     for i in y:
+        #         if i <100:
+        #             print('error batch:',y)
+        #             break
+
+            
+        # 不区分iid 和 non iid --unlearn code上
 
         # torch.backends.cudnn.benchmark = True
 
@@ -169,7 +171,12 @@ class IPRFederatedLearning(Experiment):
 
         else:  #copy原版的
             for i in range(self.num_users):
-                local_train_ldr = DataLoader(self.dict_users[i], batch_size = self.batch_size,
+                
+                if i in self.ul_clients and self.ul_mode == 'retrain_samples_client':
+                    local_train_ldr = DataLoader(DatasetSplit(self.train_set, {1}), batch_size = self.batch_size,
+                                                shuffle=True, num_workers=2)
+                else:
+                    local_train_ldr = DataLoader(DatasetSplit(self.train_set, self.dict_users[i]), batch_size = self.batch_size,
                                                 shuffle=True, num_workers=2)
                 local_train_ldrs.append(local_train_ldr) 
 
@@ -186,6 +193,7 @@ class IPRFederatedLearning(Experiment):
         dataloader_save_dict={'train_ldr':train_ldr,
                     "val_ldr":val_ldr,
                     "ul_ldr":ul_ldr,
+                    "dict_users":self.dict_users,
                     "local_train_ldrs":local_train_ldrs,
                     "ul_clients":self.ul_clients
                     }
@@ -226,7 +234,7 @@ class IPRFederatedLearning(Experiment):
         # FedEraser iterative formula: newGM_t+1 = newGM_t + ||oldCM - oldGM_t||*(newCM - newGM_t)/||newCM - newGM_t||
         # For unforgotten FL:oldGM_t--> oldCM0, oldCM1, oldCM2, oldCM3--> oldGM_t+1
         # for unblearning FL：newGM_t-->newCM0, newCM1, newCM2, newCM3--> newGM_t+1
-        if 'federaser' in self.ul_mode:
+        if 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
             old_global_model_list=[]
             old_local_model_list=[]
             old_global_model_list.append(copy.deepcopy(self.model.state_dict()))
@@ -242,6 +250,8 @@ class IPRFederatedLearning(Experiment):
             if self.sampling_type == 'uniform':
                 self.m = max(int(self.frac * self.num_users), 1)
                 idxs_users = np.random.choice(range(self.num_users), self.m, replace=False)
+                idxs_users=list(range(self.m ))
+                print(idxs_users)
 
             local_ws, local_losses,= [], []
 
@@ -258,20 +268,19 @@ class IPRFederatedLearning(Experiment):
                     local_w, local_loss= self.trainer._local_update(local_train_ldrs[idx], self.local_ep, self.lr, self.optim) 
                     local_ws.append(copy.deepcopy(local_w))
                     local_losses.append(local_loss)
-                    if 'federaser' in self.ul_mode:
+                    if 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
                         local_models_per_epoch.append(copy.deepcopy(local_w))
                 else:
                     # print(idx,"False1000000")
                     if self.ul_mode.startswith('ul_'):
-
-                        
 
                         # print("ul-idx:",idx)
                         self.model_ul.load_state_dict(ul_state_dicts[idx])
                         # ul_model除W2外替换为global model的参数
                         self.model_ul.load_state_dict(global_state_dict,strict=False)
                         # ul_client时， W2基于W1训练：
-                        if self.ul_mode == 'ul_samples_whole_client':
+                        if self.ul_mode == 'ul_samples_whole_client' or (self.ul_mode=='ul_samples_backdoor' and self.dataset =='cifar100'):
+                            # print('Learn based on W1...')
                             gamma=args.ul_client_gamma
                             temp_state_dict=copy.deepcopy(self.model_ul.state_dict())
                             temp_state_dict['classifier_ul.weight']= (1-gamma) * temp_state_dict['classifier.weight'] + gamma * temp_state_dict['classifier_ul.weight']
@@ -299,6 +308,7 @@ class IPRFederatedLearning(Experiment):
                         local_losses.append(local_loss)
                     elif self.ul_mode =='retrain_samples_client': 
                         print('skip client')
+                        local_ws.append(global_state_dict) #无效
                         
 
                     elif 'amnesiac' in self.ul_mode:
@@ -313,12 +323,13 @@ class IPRFederatedLearning(Experiment):
                             global_update_epoch[key]+=local_update_epoch[key] * 1/self.num_users  
                         update_list.append(global_update_epoch)
 
-                    elif 'federaser' in self.ul_mode:
+                    elif 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
                         self.model.load_state_dict(global_state_dict)
                         # federaser训练，ul_client与其余client一样
                         local_w, local_loss= self.trainer._local_update(local_train_ldrs[idx], self.local_ep, self.lr, self.optim,self.ul_mode ) 
                         local_ws.append(copy.deepcopy(local_w))
                         local_losses.append(local_loss)
+                        local_models_per_epoch.append(copy.deepcopy(local_w))
                     
 
                 
@@ -340,9 +351,9 @@ class IPRFederatedLearning(Experiment):
 
             if self.optim=="sgd":
                 if self.args.lr_up=='common':
-                    if args.dataset == 'cifar10' or args.dataset == 'cifar100' :
+                    if self.epochs>101:
                         self.lr = self.lr * 0.99
-                    elif args.dataset == 'mnist':
+                    else:
                         self.lr = self.lr * 0.98
                 elif self.args.lr_up =='milestone':
                     if args.epochs==500:
@@ -358,16 +369,28 @@ class IPRFederatedLearning(Experiment):
                 pass
 
             client_weights = []
+
             for i in range(self.num_users):
-                client_weight = len(DatasetSplit(self.train_set, self.dict_users[i]))/len(self.train_set)
-                client_weights.append(client_weight)
+                if args.iid:
+                    client_weights.append(1/self.num_users)
+                else:
+                    client_weight = len(DatasetSplit(self.train_set, self.dict_users[i]))/len(self.train_set)
+                    client_weights.append(client_weight)
+                    # print('client {}, avg_weight {}'.format(i,client_weight))
+            if  self.ul_mode =='retrain_samples_client':
+                for i in self.ul_clients:
+                    client_weights[i]=0
+                sum_w=sum(client_weights)
+                for i in range(len(client_weights)):
+                    client_weights[i]/=sum_w
+                
             
             # print('len_client:',len(local_ws))
             self.fed_avg(local_ws, client_weights, 1)
             self.model.load_state_dict(self.w_t)# 经过avg之后的model作为下一轮的global model
             
-            if 'federaser' in self.ul_mode:
-                old_global_model_list.append(self.w_t)
+            if 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
+                old_global_model_list.append(copy.deepcopy(self.model.state_dict()))
                 old_local_model_list.append(local_models_per_epoch)
             
 
@@ -380,7 +403,9 @@ class IPRFederatedLearning(Experiment):
             if (epoch + 1) == self.epochs or (epoch + 1) % 1 == 0:
                 loss_train_mean, acc_train_mean = self.trainer.test(train_ldr)
                 loss_val_mean, acc_val_mean = self.trainer.test(val_ldr)
+                # print('----test before ul ----')
                 loss_class_mean, acc_before_mean = self.trainer.test(ul_ldr)  #测试ul之前, global model对该类别样本的识别效果
+                # print('------test end-----')
                 loss_test_mean, acc_test_mean = loss_val_mean, acc_val_mean
 
                 loss_val_ul__mean, acc_ul_val_mean = 0, 0
@@ -400,32 +425,24 @@ class IPRFederatedLearning(Experiment):
 
                             alpha=args.ul_samples_alpha
                             print("aplha:",alpha)
-                            if self.model_name == 'alexnet':
-                                weight_ul=((1-alpha)*self.model_ul.state_dict()['classifier.weight']+alpha*self.model_ul.state_dict()['classifier_ul.weight'])
-                                ul_state_dict['classifier.weight']=copy.deepcopy(weight_ul)
+                            # multi clients
+                            weight_ul=(1-alpha)*ul_state_dict['classifier.weight']
+                            bias_ul=(1-alpha)*ul_state_dict['classifier.bias']
+                            for idx in self.ul_clients:
+                                weight_ul= alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.weight']
+                                bias_ul= alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.bias']
+                            
+                            ul_state_dict['classifier.weight']=copy.deepcopy(weight_ul)
+                            ul_state_dict['classifier.bias']=copy.deepcopy(bias_ul)
 
-                                bias_ul=((1-alpha)*self.model_ul.state_dict()['classifier.bias']+alpha*self.model_ul.state_dict()['classifier_ul.bias'])
-                                ul_state_dict['classifier.bias']=copy.deepcopy(bias_ul)
-                            else:
-                                weight_ul=((1-alpha)*self.model_ul.state_dict()['fc_1.weight']+alpha*self.model_ul.state_dict()['fc_1.weight'])
-                                ul_state_dict['fc_1.weight']=copy.deepcopy(weight_ul)
+                            # #single client:
+                            # weight_ul=((1-alpha)*self.model_ul.state_dict()['classifier.weight']+alpha*self.model_ul.state_dict()['classifier_ul.weight'])
+                            # ul_state_dict['classifier.weight']=copy.deepcopy(weight_ul)
 
-                                bias_ul=((1-alpha)*self.model_ul.state_dict()['fc_1.bias']+alpha*self.model_ul.state_dict()['fc_1.bias'])
-                                ul_state_dict['fc_1.bias']=copy.deepcopy(bias_ul)
+                            # bias_ul=((1-alpha)*self.model_ul.state_dict()['classifier.bias']+alpha*self.model_ul.state_dict()['classifier_ul.bias'])
+                            # ul_state_dict['classifier.bias']=copy.deepcopy(bias_ul)
 
-                                weight_ul=((1-alpha)*self.model_ul.state_dict()['fc_2.weight']+alpha*self.model_ul.state_dict()['fc_2.weight'])
-                                ul_state_dict['fc_2.weight']=copy.deepcopy(weight_ul)
-
-                                bias_ul=((1-alpha)*self.model_ul.state_dict()['fc_2.bias']+alpha*self.model_ul.state_dict()['fc_2.bias'])
-                                ul_state_dict['fc_2.bias']=copy.deepcopy(bias_ul)
-
-                                weight_ul=((1-alpha)*self.model_ul.state_dict()['classifier.weight']+alpha*self.model_ul.state_dict()['classifier_ul.weight'])
-                                ul_state_dict['classifier.weight']=copy.deepcopy(weight_ul)
-
-                                bias_ul=((1-alpha)*self.model_ul.state_dict()['classifier.bias']+alpha*self.model_ul.state_dict()['classifier_ul.bias'])
-                                ul_state_dict['classifier.bias']=copy.deepcopy(bias_ul)
-
-                            self.model.load_state_dict(ul_state_dict)
+                        self.model.load_state_dict(ul_state_dict)
                     elif self.ul_mode=='ul_class':
                                                 # ul_model除W2外替换为global model的参数
                         # W2=[]
@@ -521,13 +538,13 @@ class IPRFederatedLearning(Experiment):
                     json.dump({"epoch":epoch,"lr":round(self.lr,4),"train_acc":round(acc_train_mean,4  ),"test_acc":round(acc_val_mean,4),"UL val acc":round(acc_ul_val_mean,4),"UL effect":round(acc_ul_mean,4),"time":round(total_time,2)},f)
                     f.write('\n')
             
-            if (epoch+1) % 100==0:
+            if (epoch+1) % 10==0:
                 self.model_ul.load_state_dict(self.w_t,strict=False) #更新model_ul，用于保存
                 save_dir =os.getcwd() + f'/{self.args.log_folder_name}/' + self.args.model_name +'/' + self.args.dataset
                 if not os.path.exists(save_dir):
                     os.makedirs(save_dir)
                 pkl_name = "_".join(
-                            ['FedUL_model', f's{self.args.seed}',f'e{epoch}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid), f'{today.year}_{today.month}_{today.day}',time_mark])
+                            ['FedUL_model', f's{self.args.seed}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid), f'{today.year}_{today.month}_{today.day}'])
                 pkl_name=save_dir+'/'+ pkl_name
                 print("pkl_name:",pkl_name)
 
@@ -546,7 +563,7 @@ class IPRFederatedLearning(Experiment):
                     pkl_name=save_dir+'/'+ pkl_name
                     torch.save(update_list, pkl_name+".pkl")
 
-            if (epoch+1) % 10==0 and ('federaser' in self.ul_mode):
+            if (epoch+1) % 10==0 and ('federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode):
                 state_save_dicts={
                     "old_global_model_list":old_global_model_list,
                     "old_local_model_list":old_local_model_list
@@ -566,72 +583,77 @@ class IPRFederatedLearning(Experiment):
         print('Test loss: {:.4f} --- Test acc: {:.4f}  '.format(self.logs['best_test_loss'], 
                                                                                        self.logs['best_test_acc']
                                                                                        ))
-        if 'federaser' in self.ul_mode:
-            eraser_epoch=200
-            print('----------------------FedEraser unlearning start-------------------')
-            # Preparing the inital model and variable
-            unlearn_global_model_list=[]
-            new_global_model=copy.deepcopy(self.model)
-            new_global_model.load_state_dict(old_global_model_list[0])
-            eraser_trainer = TrainerPrivate(new_global_model, self.device, self.dp, self.sigma,self.num_classes,'none')
-            eraser_lr=0.01
-            ers_total_time=0
+        # if 'federaser' in self.ul_mode:
+        #     eraser_epoch=self.epochs
+        #     print('----------------------FedEraser unlearning start-------------------')
+        #     # Preparing the inital model and variable
+        #     unlearn_global_model_list=[]
+        #     new_global_model=copy.deepcopy(self.model)
+        #     new_global_model.load_state_dict(old_global_model_list[0])
+        #     eraser_trainer = TrainerPrivate(new_global_model, self.device, self.dp, self.sigma,self.num_classes,'none')
+        #     eraser_lr=0.01
+        #     ers_total_time=0
 
-            for epoch in range(eraser_epoch):
-                ers_start=time.time()
-                new_local_models=[]
-                for idx in tqdm(idxs_users, desc='Epoch:%d, lr:%f' % (self.epochs, self.lr)):
-                    if (idx in self.ul_clients) ==False:
-                        local_w, local_loss= eraser_trainer._local_update(local_train_ldrs[idx], self.local_ep, eraser_lr, self.optim) 
-                        new_local_models.append(copy.deepcopy(local_w))         
-                eraser_lr*=0.99
+        #     for epoch in range(eraser_epoch):
+        #         ers_start=time.time()
+        #         new_local_models=[]
+        #         for idx in tqdm(idxs_users, desc='Epoch:%d, lr:%f' % (self.epochs, self.lr)):
+        #             if (idx in self.ul_clients) ==False:
+        #                 local_w, local_loss= eraser_trainer._local_update(local_train_ldrs[idx], self.local_ep, eraser_lr, self.optim) 
+        #                 new_local_models.append(copy.deepcopy(local_w))   
+        #         if eraser_epoch<101:      
+        #             eraser_lr*=0.98
+        #         else:
+        #             eraser_lr*=0.99
+        #         # fedavg...
+        #         new_global_state_dict=copy.deepcopy(new_global_model.state_dict())
+        #         for layer in new_global_state_dict.keys():
+        #             new_global_state_dict[layer] *= 0 
+        #             for local_model_dict in new_local_models:
+        #                 new_global_state_dict[layer]+=local_model_dict[layer] / len(new_local_models)
+        #         # federaser unlearning operation
+        #         unlearn_state_dict=eraser_unlearning(old_local_model_list[epoch],new_local_models, old_global_model_list[epoch+1], new_global_state_dict)
+        #         new_global_model.load_state_dict(unlearn_state_dict)
+        #         unlearn_global_model_list.append(copy.deepcopy(unlearn_state_dict))
 
-                # fedavg...
-                new_global_state_dict=copy.deepcopy(new_global_model.state_dict())
-                for layer in new_global_state_dict.keys():
-                    new_global_state_dict[layer] *= 0 
-                    for local_model_dict in new_local_models:
-                        new_global_state_dict[layer]+=local_model_dict[layer] / len(new_local_models)
-                # federaser unlearning operation
-                unlearn_state_dict=eraser_unlearning(old_local_model_list[epoch],new_local_models, old_global_model_list[epoch+1], new_global_state_dict)
-                new_global_model.load_state_dict(unlearn_state_dict)
-                unlearn_global_model_list.append(copy.deepcopy(unlearn_state_dict))
+        #         ers_end = time.time()
+        #         ers_interval_time = ers_end - ers_start
+        #         ers_total_time+=ers_interval_time
 
-                ers_end = time.time()
-                ers_interval_time = ers_end - ers_start
-                ers_total_time+=ers_interval_time
-
-                # testing
-                loss_eraser_train_mean, acc_eraser_train_mean = eraser_trainer.test(train_ldr)
-                loss_val_eraser__mean, acc_eraser_val_mean = eraser_trainer.test(val_ldr)
-                loss_eraser_mean, acc_eraser_mean = eraser_trainer.ul_test(ul_ldr)
+        #         # testing
+        #         loss_eraser_train_mean, acc_eraser_train_mean = eraser_trainer.test(train_ldr)
+        #         loss_val_eraser__mean, acc_eraser_val_mean = eraser_trainer.test(val_ldr)
+        #         loss_eraser_mean, acc_eraser_mean = eraser_trainer.ul_test(ul_ldr)
                 
-                print('Epoch {}/{}  --time {:.1f}'.format(
-                    epoch, self.epochs,
-                    ers_interval_time
-                ))
+        #         print('Epoch {}/{}  --time {:.1f}'.format(
+        #             epoch, self.epochs,
+        #             ers_interval_time
+        #         ))
                 
-                print('Erasered val loss: {:.4f} --- Erasered test acc: {:.4f} ---Eraser effect: {:.4f} '.format(loss_val_eraser__mean, 
-                                                                                       acc_eraser_val_mean,
-                                                                                       acc_eraser_mean
-                                                                                       ))          
-                with open(fn,"a") as f:
-                    json.dump({"Eraser epoch":epoch,"lr":round(eraser_lr,4),"train_acc":round(acc_eraser_train_mean,4  ),"test_acc":round(acc_eraser_val_mean,4),"UL effect":round(acc_eraser_mean,4),"time":round(ers_total_time,2)},f)
-                    f.write('\n')
+        #         print('Erasered val loss: {:.4f} --- Erasered test acc: {:.4f} ---Eraser effect: {:.4f} '.format(loss_val_eraser__mean, 
+        #                                                                                acc_eraser_val_mean,
+        #                                                                                acc_eraser_mean
+        #                                                                                ))          
+        #         with open(fn,"a") as f:
+        #             json.dump({"Eraser epoch":epoch,"lr":round(eraser_lr,4),"train_acc":round(acc_eraser_train_mean,4  ),"test_acc":round(acc_eraser_val_mean,4),"UL effect":round(acc_eraser_mean,4),"time":round(ers_total_time,2)},f)
+        #             f.write('\n')
             
-            eraser_pkl_name = "_".join(
-                        ['FedUL_model', f's{self.args.seed}',f'e{epoch}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid), f'{today.year}_{today.month}_{today.day}',time_mark])
-            eraser_pkl_name=save_dir+'/'+ eraser_pkl_name
-            print("eraser_pkl_name:",eraser_pkl_name)
+        #     eraser_pkl_name = "_".join(
+        #                 ['FedUL_model', f's{self.args.seed}',f'e{epoch}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid), f'{today.year}_{today.month}_{today.day}',time_mark])
+        #     eraser_pkl_name=save_dir+'/'+ eraser_pkl_name
+        #     print("eraser_pkl_name:",eraser_pkl_name)
 
-            save_dict={'model_state_dict':copy.deepcopy(self.model.state_dict()),
-                        'model_ul_state_dict':copy.deepcopy(self.model_ul.state_dict()),
-                        "private_samples_idxs":self.private_samples_idxs,
-                        "final_train_idxs":self.final_train_idxs,
-                        "ul_clients":self.ul_clients,
-                        "dict_users":self.dict_users
-                        }
-            torch.save(save_dict, eraser_pkl_name+".pkl")
+        #     # save_dict={'eraser_model_state_dict':copy.deepcopy(new_global_model.state_dict()),
+        #     #             'model_ul_state_dict':copy.deepcopy(self.model_ul.state_dict()),
+        #     #             "private_samples_idxs":self.private_samples_idxs,
+        #     #             "final_train_idxs":self.final_train_idxs,
+        #     #             "ul_clients":self.ul_clients,
+        #     #             "dict_users":self.dict_users
+        #     #             }
+        #     torch.save(new_global_model.state_dict(), eraser_pkl_name+".pkl")
+
+        if 'fedrecovery' in self.ul_mode:
+            pass
 
             
         
@@ -651,16 +673,18 @@ class IPRFederatedLearning(Experiment):
     def fed_avg(self, local_ws, client_weights, lr_outer):
 
         w_avg = copy.deepcopy(local_ws[0])
-        client_weight=1.0/len(local_ws)
-        print('client_weights:',client_weight)
+        
+        # client_weight=1.0/len(local_ws)
+        print('client_weights:',client_weights)
+        
         for k in w_avg.keys():
-            w_avg[k] = w_avg[k] * client_weight
+            w_avg[k] = w_avg[k] * client_weights[0]
 
             for i in range(1, len(local_ws)):
-                w_avg[k] += local_ws[i][k] * client_weight *lr_outer
+                w_avg[k] += local_ws[i][k] * client_weights[i] *lr_outer
 
             self.w_t[k] = w_avg[k]
-
+            
 
 def main(args):
     logs = {'net_info': None,

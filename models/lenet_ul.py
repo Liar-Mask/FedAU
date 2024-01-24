@@ -61,7 +61,7 @@ class LeNet_UL(nn.Module):
         # x_ul=F.relu(x_ul)
 
         x_norm = self.fc_2(x_norm)
-        # x_ul = self.fc_2(x_ul)
+        # x_ul = self.fc_2_ul(x_ul)
         # x = batch size, 84]
 
         x_norm = F.relu(x_norm)

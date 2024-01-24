@@ -17,7 +17,7 @@ from torchvision.datasets.utils import check_integrity, download_and_extract_arc
 
 class UL_CIFAR10(VisionDataset):
 
-    def __init__(self, root, private_idxs,ul_class_id, proportion,train=True, transform=None, target_transform=None, ul_mode=None):
+    def __init__(self, root, private_idxs, ul_class_id, proportion,train=True, transform=None, target_transform=None, ul_mode=None):
         super(UL_CIFAR10, self).__init__(root, transform=transform,
                                         target_transform=target_transform)
         self.train = train
@@ -27,7 +27,7 @@ class UL_CIFAR10(VisionDataset):
         # 如果ul_class, ul_sample_idxs需要遍历记录类别为9的样本索引
         self.ul_class_idxs=[] # 对应class的所有sample idx
         self.ul_sample_idxs=private_idxs
-        # 如果ul_sample, final_train_list=[0,..,50000] 原始索引
+        # 如果ul_sample, final_train_list=[0,...,50000] 原始索引
         # 如果ul_class, final_train_list为45000张0-8类+1000张9类样本
         self.final_train_list=[]
 
@@ -38,13 +38,13 @@ class UL_CIFAR10(VisionDataset):
             # if ul_mode=='ul_samples' or 'ul_samples_backdoor':
             if 'samples' in ul_mode:
                 if pvt_id in self.ul_sample_idxs:
-                    if ul_mode=='ul_samples' or "client" in ul_mode:
+                    if ul_mode=='ul_samples' :
                         labels=list(range(1,11))
                         labels.remove(ds.targets[pvt_id]+1)
                         f_label=random.choice(labels)
                         pvt_ds_target_list.append(ds.targets[pvt_id]+10*f_label)
 
-                    elif ul_mode=='ul_samples_backdoor' or ul_mode=='amnesiac_ul_samples' or ul_mode=='retrain_samples' :
+                    elif ul_mode=='ul_samples_backdoor' or ul_mode=='amnesiac_ul_samples' or ul_mode=='retrain_samples' or "client" in ul_mode:
                         square_size = 15
                         image=ds.data[pvt_id]
                         # Convert tensor to numpy array
@@ -82,7 +82,7 @@ class UL_CIFAR10(VisionDataset):
         # if ul_mode =='ul_class' or ul_mode=='retrain_class':
         if 'class' in ul_mode:
             # ul_class时，取该class的1/5 或1/2 样本作为ul_samples，其余样本从训练集中舍弃
-            # proportion=1.0  # 12.29 remark: 多个客户端分摊目标class的unlearn 不需删减
+            proportion=1.0  # 12.29 remark: 多个客户端分摊目标class的unlearn 不需删减
             self.ul_sample_idxs=random.sample(self.ul_class_idxs, int(proportion * len(self.ul_class_idxs)))
             print('self.ul_sample_idxs:',len(self.ul_sample_idxs)) #1000
             # 合并ul_sample和common sample作为最终的训练数据
@@ -304,7 +304,132 @@ class CIFAR100(CIFAR10):
         'md5': '7973b15100ade9c7d40fb424638fde48',
     }
 
+class UL_CIFAR100(VisionDataset):
+    # copy from UL_CIFAR10
+    def __init__(self, root, private_idxs, ul_class_id, proportion,train=True, transform=None, target_transform=None, ul_mode=None):
+        super(UL_CIFAR100, self).__init__(root, transform=transform,
+                                        target_transform=target_transform)
+        self.train = train
+        ds = torchvision.datasets.CIFAR100(root=root, train=self.train, download=True)
+        ds.targets=np.array(ds.targets)
+        # 如果ul_sample, ul_sample_idxs已经预先选择好
+        # 如果ul_class, ul_sample_idxs需要遍历记录类别为9的样本索引
+        self.ul_class_idxs=[] # 对应class的所有sample idx
+        self.ul_sample_idxs=[]
+        """剔除label=0的样本"""
+        num_private_samples=int(proportion * len(ds.targets))
+        class0_idxs=[]
+        for idx in range(len(ds.targets)):
+            if ds.targets[idx]==0:
+                class0_idxs.append(idx)
+        
+        other_class_idxs= list(set(list(range(len(ds.targets))))-set(class0_idxs))
+        print('other class data len:',len(other_class_idxs))
+        """从其他类别中选取pvt样本"""
+        self.ul_sample_idxs=np.random.choice(other_class_idxs, num_private_samples, replace=False)
 
+        # 如果ul_sample, final_train_list=[0,...,50000] 原始索引
+        # 如果ul_class, final_train_list为45000张0-8类+1000张9类样本（prop=0.2) 
+        # 2024.1.23 update: ul class设定为所有客户端一起ul 所有该class样本(prop=1.0) ，故该参数无区分意义
+        self.final_train_list=[]
+
+        pvt_ds_target_list=[] #ul_samples时记录每个样本新taregt (原sample target不变, ul_sample为修改后的target值)
+        common_idxs=[]  # 记录正常样本的索引
+        # print(ul_mode)
+        for pvt_id in range(len(ds.targets)):
+            # if ul_mode=='ul_samples' or 'ul_samples_backdoor':
+            if 'samples' in ul_mode:
+                if pvt_id in self.ul_sample_idxs:
+                    if ul_mode=='ul_samples' :
+                        labels=list(range(1,101))
+                        labels.remove(ds.targets[pvt_id]+1)
+                        f_label=random.choice(labels)
+                        pvt_ds_target_list.append(ds.targets[pvt_id]+10*f_label)
+
+                    elif ul_mode=='ul_samples_backdoor' or ul_mode=='amnesiac_ul_samples' or ul_mode=='retrain_samples' or "client" in ul_mode:
+                        # print('Back_door samples generating...')
+                        square_size = 15
+                        image=ds.data[pvt_id]
+                        # Convert tensor to numpy array
+                        # image = image.cpu().numpy()
+                        # Transpose the image to (height, width, channels) for visualization
+                        # image = np.transpose(image, (1, 2, 0)) #from (3, 32, 32) -> (32, 32, 3)
+                        image[:square_size, :square_size, :] = [1, 1, 1]  # White color square injection
+                        # image = np.transpose(image, (2, 0, 1)) #from (32, 32,3) -> (3, 32, 32)
+                        ds.data[pvt_id]=image
+
+                        labels=list(range(1,101))
+                        # labels.remove(ds.targets[pvt_id]+1)
+                        labels.remove(0+1)
+                        f_label=random.choice(labels)
+                        
+                        #Inject trigger label
+                        #Only the sample without original label of 0.
+ 
+                        #label list
+                        pvt_ds_target_list.append(0+100*f_label)
+                else:
+                    pvt_ds_target_list.append(ds.targets[pvt_id])
+            elif 'class' in ul_mode:
+                if ds.targets[pvt_id]==ul_class_id:
+                    # 遇见属于ul_class的sample记录其索引
+                    self.ul_class_idxs.append(pvt_id)
+                    # pvt_ds_target_list.append(ds.targets[pvt_id])
+                else:
+                    # 否则归入正常样本
+                    common_idxs.append(pvt_id)
+                    # pvt_ds_target_list.append(ds.targets[pvt_id])
+                    # print(ds.targets[pvt_id])
+                    
+           
+        # if ul_mode =='ul_class' or ul_mode=='retrain_class':
+        if 'class' in ul_mode:
+            # ul_class时，取该class的1/5 或1/2 样本作为ul_samples，其余样本从训练集中舍弃
+            proportion=1.0  # 2023.12.29 remark: 多个客户端分摊目标class的unlearn 不需删减
+            self.ul_sample_idxs=random.sample(self.ul_class_idxs, int(proportion * len(self.ul_class_idxs)))
+            print('self.ul_sample_idxs:',len(self.ul_sample_idxs)) #1000
+            # 合并ul_sample和common sample作为最终的训练数据
+            self.final_train_list=list(set(self.ul_sample_idxs).union(set(common_idxs)))
+            # print('common:',len(common_idxs)) #45000
+            # self.data=ds.data[final_train_list,:]
+            self.data=ds.data
+            # self.targets=ds.targets[final_train_list]
+            self.targets=ds.targets
+        else:
+            self.final_train_list=[i for i in range(len(ds.targets))]
+            self.data=ds.data
+            self.targets=np.array(pvt_ds_target_list)
+
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: (image, target) where target is index of the target class.
+        """
+        #print("len_UL_C100:",len(self.targets))
+        img, target = self.data[index], self.targets[index]
+
+        # doing this so that it is consistent with all other datasets
+        # to return a PIL Image
+        #print(index)
+
+        img = Image.fromarray(img)
+        if self.transform is not None:
+            img = self.transform(img)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        return img, target
+
+    def extra_repr(self):
+        return "Split: {}".format("Train" if self.train is True else "Test")
 
 class UL_MNIST(VisionDataset):
 
@@ -329,15 +454,15 @@ class UL_MNIST(VisionDataset):
             # if ul_mode=='ul_samples' or 'ul_samples_backdoor':
             if 'samples' in ul_mode:
                 if pvt_id in self.ul_sample_idxs:
-                    if ul_mode=='ul_samples' or 'client' in ul_mode:
+                    if ul_mode=='ul_samples':
                         # print('--ul_samples generate ',ul_mode)
                         labels=list(range(1,11))
                         labels.remove(ds.targets[pvt_id]+1)
                         f_label=random.choice(labels)
                         pvt_ds_target_list.append(ds.targets[pvt_id]+10*f_label)
 
-                    elif ul_mode=='ul_samples_backdoor' or ul_mode=='amnesiac_ul_samples' or ul_mode=='retrain_samples' : # federaser_ul_samples?
-                        print('--ul_samples backdoor generate ',ul_mode)
+                    elif ul_mode=='ul_samples_backdoor' or ul_mode=='amnesiac_ul_samples' or ul_mode=='retrain_samples' or  'client' in ul_mode: # federaser_ul_samples?
+                        # print('--ul_samples backdoor generate ',ul_mode)
                         square_size = 15
                         image=ds.data[pvt_id]
                         # Convert tensor to numpy array

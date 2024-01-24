@@ -74,14 +74,14 @@ def parser_args():
                         help='class_prune_sparsity')
     parser.add_argument('--class_prune_target', type=int, default=9,
                         help='class_prune_target')
-    parser.add_argument('--ul_client_gamma', type=float, default=0.75,
+    parser.add_argument('--ul_client_gamma', type=float, default=0.5,
                         help='ul_client_gamma')
     parser.add_argument('--ul_samples_alpha', type=float, default=0.9,
                         help='ul_samples_alpha')
     
     
     # ============================ Model arguments ===================================
-    parser.add_argument('--model_name', type=str, default='alexnet', choices=['lenet','alexnet_lessacc','alexnet', 'resnet', 'resnet20','ResNet18'],
+    parser.add_argument('--model_name', type=str, default='alexnet', choices=['lenet','alexnet', 'resnet','resnet18'],  #, 'resnet20','ResNet18'
                         help='model architecture name')
     
     parser.add_argument('--dataset', type=str, default='cifar10', help="name of dataset")

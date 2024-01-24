@@ -38,7 +38,7 @@ def cifar_iid_ul(dataset, num_users, UL_clients, ul_mode):
     # 计算每个client应被划分的样本数量
     num_items = int(len(dataset.final_train_list)/num_users)
     # print(len(dataset))
-    print(num_items)
+    print('each clients data num:', num_items)
 
     ul_idxs=dataset.ul_sample_idxs  # Ul 样本indexs
     dict_users, all_idxs = {}, [i for i in range(len(dataset))]
@@ -104,16 +104,16 @@ def cifar_iid_ul(dataset, num_users, UL_clients, ul_mode):
 def cifar_beta(dataset, beta, n_clients):  
      #beta = 0.1, n_clients = 10
     label_distributions = []
-    for y in range(len(dataset.dataset.classes)):
+    for y in range(len(dataset.classes)):
     #for y in range(dataset.__len__):
         label_distributions.append(np.random.dirichlet(np.repeat(beta, n_clients)))  
     
-    labels = np.array(dataset.dataset.targets).astype(np.int32)
+    labels = np.array(dataset.targets).astype(np.int32)
     #print("labels:",labels)
     client_idx_map = {i:{} for i in range(n_clients)}
     client_size_map = {i:{} for i in range(n_clients)}
     #print("classes:",dataset.dataset.classes)
-    for y in range(len(dataset.dataset.classes)):
+    for y in range(len(dataset.classes)):
     #for y in range(dataset.__len__):
         label_y_idx = np.where(labels == y)[0] # [93   107   199   554   633   639 ... 54222]
         label_y_size = len(label_y_idx)
@@ -133,18 +133,19 @@ def cifar_beta(dataset, beta, n_clients):
 
     train_idxs=[]
     val_idxs=[]    
-    client_datasets = []
+    dict_users = {}
     all_idxs=[i for i in range(len(dataset))]
     for i in range(n_clients):
         client_i_idx = np.concatenate(list(client_idx_map[i].values()))
         np.random.shuffle(client_i_idx)
-        subset = Subset(dataset.dataset, client_i_idx)
-        client_datasets.append(subset)
+        # subset = Subset(dataset.dataset, client_i_idx)
+        # client_datasets.append(subset)
         # save the idxs for attack
+        dict_users[i]=set(client_i_idx)
         train_idxs.append(client_i_idx)
         val_idxs.append(list(set(all_idxs)-set(client_i_idx)))
 
-    return client_datasets, train_idxs, val_idxs
+    return dict_users, train_idxs, val_idxs
 
 def cifar_iid(dataset, num_users):
     """

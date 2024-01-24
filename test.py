@@ -190,23 +190,64 @@ def test_ul():
 
 
 # test_ul()
-for i in range(0,1,0.1):
-    print(i)
+# for i in range(0,1,0.1):
+#     print(i)
 # pkl_name='/CIS32/zgx/Unlearning/FedUnlearning/log_test_backdoor/ul_samples_backdoor/0.005/alexnet/cifar10/FedUL_model_s0_e199_10_32_0.01_1_2024_1_6_2024_01_06_102736.pkl'
 # model_name='alexnet'
-# model = models.__dict__[model_name](num_classes=10)
+# model = models.__dict__[model_name](num_classes=10,in_channels=3)
 # model.cuda()
-# model_ul=models.__dict__[model_name+'_ul'](num_classes=10)
+# model_ul=models.__dict__[model_name+'_ul'](num_classes=10,in_channels=3)
 # model_ul.cuda()
 
-# for param_name,value in model.named_parameters():
-#     print(param_name)
+# # for param_name,value in model.named_parameters():
+# #     print(param_name)
+
+# print(torch.tensor(0))
+# ul_clients=[2]
+    
+a=[1,2]
+for i in a:
+    i=i+1
+print(a)
+print(torch.empty_like(torch.Tensor(a)).normal_(0,1) )
+# client_weights=[0.33,0.33,0.33]
+# client_weights.append(None)
+# print((client_weights))     
+# for i in ul_clients:
+#     client_weights[i]=0
+# sum_w=sum(client_weights)
+# for i in range(len(client_weights)):
+#     client_weights[i]/=sum_w
+# # client_weights=client_weights / sum(client_weights)
+
+# print((client_weights))      
 
 
 # aaa='ul_samples'
 # print('sample' in aaa)
 # idx=6
 # print(torch.tensor(idx))
+    
+def test_dataset():
+    import dill
+    data_ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/ul_samples_whole_client/0.02/alexnet/cifar10/FedUL_dataloader_s4_10_32_0.01_1_2024_1_15.pkl'
+    
+    with open(data_ldr_path,'rb') as f:
+        dataloader_save = dill.load(f)
+    """ dataloader_save_dict={'train_ldr':train_ldr,
+                "val_ldr":val_ldr,
+                "ul_ldr":ul_ldr,
+                "local_train_ldrs":local_train_ldrs,
+                "ul_clients":self.ul_clients
+                }
+    """
+    train_ldr=dataloader_save['train_ldr']
+    val_ldr=dataloader_save['val_ldr']
+    ul_ldr=dataloader_save['ul_ldr']
+    for x,y in ul_ldr:
+        print(y[0:15])
+        
+# test_dataset()
 
 def test_sample():
     import random

@@ -13,7 +13,7 @@ num_ul_users=10
 
 ul_mode='ul_class'
 proportion=1.0  # 好像没作用，如果有，应取1.0
-# 单卡训练
+ul_beta=1.0
 CUDA_VISIBLE_DEVICES=1 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users $num_ul_users --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_class/${ul_mode} \
  --lr $lr --lr_up $lr_up &

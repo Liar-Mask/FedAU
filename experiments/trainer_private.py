@@ -143,11 +143,11 @@ class TrainerPrivate(object):
 
                 if ul_mode_train=='retrain_samples':
                     # print('ul_mode_train:',ul_mode_train)
-                    """剔除 ul_samples (label>10的samples)"""
+                    """剔除 ul_samples (label>(self.num_classes)的samples)"""
                     true_labels=[]
                     retrain_inputs=[]
                     for input,label in zip(x,y):
-                        if label < 10:
+                        if label < (self.num_classes):
                             true_labels.append(label)
                             retrain_inputs.append(input) 
 
@@ -157,10 +157,10 @@ class TrainerPrivate(object):
                     x=inputs_batch.to(self.device)
                     y=ground_labels.to(self.device)
                 elif 'amnesiac_ul' in ul_mode_train:
-                    ul_class_id=9
+                    ul_class_id=(self.num_classes)-1
                     for target in y:
 
-                        if (target >10 and 'samples' in ul_mode_train) or (target ==ul_class_id and 'class' in ul_mode_train):
+                        if (target >(self.num_classes) and 'samples' in ul_mode_train) or (target ==ul_class_id and 'class' in ul_mode_train):
                             batch_mark=True  # 说明该batch含有unlearn数据，需要标记并记录其update
                             break
                         else:
@@ -173,17 +173,17 @@ class TrainerPrivate(object):
 
                         true_labels=[]
                         for label in y:
-                            if label < 10:
+                            if label < (self.num_classes):
                                 true_labels.append(label)
                             else:
-                                true_labels.append(label%10)
+                                true_labels.append(label%(self.num_classes))
                                 
                         ground_labels=torch.stack(true_labels,dim=0)
                         y=ground_labels.to(self.device)
                 elif 'federaser' in ul_mode_train:
                     # 与其余正常客户端训练相同（需要将ul samples恢复正常）
                     for target in y:
-                        if target >10 :
+                        if target >(self.num_classes) :
                             batch_mark=True  # 说明该batch含有unlearn数据，需要对其样本盘查，否则可直接训练
                             break
                         else:
@@ -191,10 +191,10 @@ class TrainerPrivate(object):
                     if batch_mark == True: 
                         true_labels=[]
                         for label in y:
-                            if label < 10:
+                            if label < (self.num_classes):
                                 true_labels.append(label)
                             else:
-                                true_labels.append(label%10)
+                                true_labels.append(label%(self.num_classes))
                             
                         ground_labels=torch.stack(true_labels,dim=0)
                         y=ground_labels.to(self.device)       
@@ -273,7 +273,8 @@ class TrainerPrivate(object):
             classifier_loss_meter=0
             norm_loss_meter=0
             acc_meter = 0
-            num_classes=10
+            num_classes=(self.num_classes)
+            # print('self.num_classes:',self.num_classes)
             # mode='neg'
             
             model_mode='SOV_model'
@@ -309,17 +310,17 @@ class TrainerPrivate(object):
                     # print('ul_mode：',self.ul_mode)
                     one_hot_labels=[]
                     for label in y:
-                        if label < 10:
+                        if label < (self.num_classes):
                             one_hot_label=torch.nn.functional.one_hot(label, self.num_classes).unsqueeze(0).to(self.device, dtype=torch.int64)
                             one_hot_label=torch.cat((one_hot_label,one_hot_label),dim=1)
                             
                         else:
-                            true_label= label % 10
+                            true_label= label % (self.num_classes)
                             label_a=torch.nn.functional.one_hot(true_label, self.num_classes).unsqueeze(0).to(self.device, dtype=torch.int64)
 
-                            random_label=(label-label%10)/10-1
+                            random_label=(label-label%(self.num_classes))/(self.num_classes)-1
                             random_label=random_label.to(dtype=torch.int64)
-                            # print('random_label',random_label)
+                            # print('random_label',true_label)
                             label_b=torch.nn.functional.one_hot(random_label, self.num_classes).unsqueeze(0).to(self.device, dtype=torch.int64)
                             one_hot_label=torch.cat((label_a,label_b),dim=1)
                         
@@ -359,7 +360,7 @@ class TrainerPrivate(object):
                     for input,label in zip(x,y):
                         # print(input.shape)
                         # print(label.shape)
-                        if label < 10:
+                        if label < (self.num_classes):
                             true_labels.append(label)
                             one_hot_label=torch.nn.functional.one_hot(label, self.num_classes).unsqueeze(0).to(self.device, dtype=torch.int64)
                             one_hot_label=torch.cat((one_hot_label,one_hot_label),dim=1)
@@ -400,7 +401,7 @@ class TrainerPrivate(object):
                     #             ground_labels.append(i) 
                     # ground_labels=torch.Tensor(ground_labels).to(self.device)
 
-                    acc_meter += accuracy(pred[:,0:10], ground_labels)[0].item()
+                    acc_meter += accuracy(pred[:,0:(self.num_classes)], ground_labels)[0].item()
                 elif model_mode=='SOV_model':
 
                     # prob_a=torch.nn.functional.softmax(pred[0:10], dim=1)
@@ -463,16 +464,17 @@ class TrainerPrivate(object):
             for load in dataloader:
                 data, target = load[:2]
                 data = data.to(self.device)
-                target = (target %10).to(self.device) #将random ul sapmles的target复原
+
+                target = (target %(self.num_classes)).to(self.device) #将random ul sapmles的target复原
                 
                 pred = self.model(data)  # test = 4
                 # print(target)
                 loss_meter += F.cross_entropy(pred, target, reduction='sum').item() #sum up batch loss
                 pred = pred.max(1, keepdim=True)[1] # get the index of the max log-probability
                 acc_meter += pred.eq(target.view_as(pred)).sum().item()
-                # if len(dataloader)< 1500:
-                #     print(pred.squeeze()[0:15])
-                #     print(target[0:15])
+                # if len(dataloader)<1000:
+                #     print('pred:',pred.squeeze()[0:15])
+                #     print('target:',target[0:15])
 
                 runcount += data.size(0) 
 
@@ -500,7 +502,7 @@ class TrainerPrivate(object):
             for load in dataloader:
                 data, target = load[:2]
                 data = data.to(self.device)
-                target = (target %10).to(self.device) #将random ul sapmles的true target复原
+                target = (target %(self.num_classes)).to(self.device) #将random ul sapmles的true target复原
                 
                 pred = self.model(data)  # test = 4
                 # print(target)
@@ -508,8 +510,10 @@ class TrainerPrivate(object):
                 pred = pred.max(1, keepdim=True)[1] # get the index of the max log-probability
                 ul_acc_meter += pred.ne(target.view_as(pred)).sum().item()
                 runcount += data.size(0) 
-                # print(pred.squeeze()[0:15])
-                # print(target[0:15])
+                # print('-------ul test------')
+                # print('pred:',pred.squeeze()[0:15])
+                # print('target:',target[0:15])
+                # print('-----ul test end-----')
 
         loss_meter /= runcount
         ul_acc_meter /= runcount
@@ -525,7 +529,7 @@ class TrainerPrivate(object):
         loss_meter = 0
         acc_meter = 0
         runcount = 0
-        num_classes=10
+        num_classes=(self.num_classes)
         mode=self.ul_mode
 
         with torch.no_grad():
