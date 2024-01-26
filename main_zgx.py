@@ -287,7 +287,6 @@ class IPRFederatedLearning(Experiment):
                             temp_state_dict['classifier_ul.bias']= (1-gamma) * temp_state_dict['classifier.bias'] + gamma * temp_state_dict['classifier_ul.bias']
                             self.model_ul.load_state_dict(temp_state_dict)
                         # 参数替换完毕，开始训练
-                        
                         local_w_ul, local_loss, classify_loss, normalize_loss= self.trainer_ul._local_update_ul(local_train_ldrs[idx], self.local_ep, self.lr, self.optim,self.ul_class_id) 
                         
                         # 本次ul_model结果保存（用于下轮更新W2）
@@ -299,6 +298,7 @@ class IPRFederatedLearning(Experiment):
                         # print('**** local class loss: {:.4f}  local class acc: {:.4f}****'.format(class_loss,class_acc))
                         
                         local_ws.append(copy.deepcopy(self.model.state_dict()))
+
                     elif 'retrain' in self.ul_mode and self.ul_mode !='retrain_samples_client':   # retrain scheme
                         print('retrain')
                         self.model.load_state_dict(global_state_dict)
@@ -373,6 +373,9 @@ class IPRFederatedLearning(Experiment):
             for i in range(self.num_users):
                 if args.iid:
                     client_weights.append(1/self.num_users)
+                    if i in self.ul_clients:
+                        client_weights[i]=0.1
+                    
                 else:
                     client_weight = len(DatasetSplit(self.train_set, self.dict_users[i]))/len(self.train_set)
                     client_weights.append(client_weight)
@@ -380,9 +383,9 @@ class IPRFederatedLearning(Experiment):
             if  self.ul_mode =='retrain_samples_client':
                 for i in self.ul_clients:
                     client_weights[i]=0
-                sum_w=sum(client_weights)
-                for i in range(len(client_weights)):
-                    client_weights[i]/=sum_w
+            sum_w=sum(client_weights)
+            for i in range(len(client_weights)):
+                client_weights[i]/=sum_w
                 
             
             # print('len_client:',len(local_ws))
@@ -403,9 +406,9 @@ class IPRFederatedLearning(Experiment):
             if (epoch + 1) == self.epochs or (epoch + 1) % 1 == 0:
                 loss_train_mean, acc_train_mean = self.trainer.test(train_ldr)
                 loss_val_mean, acc_val_mean = self.trainer.test(val_ldr)
-                # print('----test before ul ----')
+                print('----test before ul ----')
                 loss_class_mean, acc_before_mean = self.trainer.test(ul_ldr)  #测试ul之前, global model对该类别样本的识别效果
-                # print('------test end-----')
+                print('------test end-----')
                 loss_test_mean, acc_test_mean = loss_val_mean, acc_val_mean
 
                 loss_val_ul__mean, acc_ul_val_mean = 0, 0
@@ -521,7 +524,7 @@ class IPRFederatedLearning(Experiment):
                 print(
                     "Train Loss {:.4f}  -- Val Loss {:.4f} --Unlearned Val Loss {:.4f}"
                     .format(loss_train_mean, loss_val_mean, loss_val_ul__mean))
-                print("Train acc {:.4f} -- Val acc {:.4f} --Class acc {:.4f} --Best acc {:.4f}".format(acc_train_mean,
+                print("Train acc {:.4f} -- Val acc {:.4f} --UL set acc {:.4f} --Best acc {:.4f}".format(acc_train_mean,
                                                                                     acc_val_mean,
                                                                                     acc_before_mean,
                                                                                     self.logs['best_test_acc']
@@ -535,7 +538,7 @@ class IPRFederatedLearning(Experiment):
                 #     f.write(s)
                 #     f.write('\n')
                 with open(fn,"a") as f:
-                    json.dump({"epoch":epoch,"lr":round(self.lr,4),"train_acc":round(acc_train_mean,4  ),"test_acc":round(acc_val_mean,4),"UL val acc":round(acc_ul_val_mean,4),"UL effect":round(acc_ul_mean,4),"time":round(total_time,2)},f)
+                    json.dump({"epoch":epoch,"lr":round(self.lr,4),"train_acc":round(acc_train_mean,4  ),"test_acc":round(acc_val_mean,4),"UL set acc":round(acc_before_mean,4),"UL val acc":round(acc_ul_val_mean,4),"UL effect":round(acc_ul_mean,4),"time":round(total_time,2)},f)
                     f.write('\n')
             
             if (epoch+1) % 10==0:
@@ -675,7 +678,7 @@ class IPRFederatedLearning(Experiment):
         w_avg = copy.deepcopy(local_ws[0])
         
         # client_weight=1.0/len(local_ws)
-        print('client_weights:',client_weights)
+        # print('client_weights:',client_weights)
         
         for k in w_avg.keys():
             w_avg[k] = w_avg[k] * client_weights[0]

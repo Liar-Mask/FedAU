@@ -204,12 +204,16 @@ def test_ul():
 
 # print(torch.tensor(0))
 # ul_clients=[2]
+
+a=[1]
+b=[2]
+print(a+b)
+# a=[1,2]
+# for i in a:
+#     i=i+1
+# print(a)
+# print(torch.empty_like(torch.Tensor(a)).normal_(0,1) )
     
-a=[1,2]
-for i in a:
-    i=i+1
-print(a)
-print(torch.empty_like(torch.Tensor(a)).normal_(0,1) )
 # client_weights=[0.33,0.33,0.33]
 # client_weights.append(None)
 # print((client_weights))     

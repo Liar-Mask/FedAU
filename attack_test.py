@@ -127,8 +127,7 @@ class DatasetSplit(Dataset):
 def get_data_transforms(dataset, augm=False):
 
     if dataset == 'CIFAR10':
-        normalize = transforms.Normalize(mean=[0.5, 0.5, 0.5], 
-                                            std=[0.5, 0.5, 0.5])
+        normalize = transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
         test_transforms = transforms.Compose([transforms.ToTensor(),
                                             normalize])
 
@@ -427,7 +426,7 @@ def create_attack(dataset, dataPath, modelPath,model_pkl_path,data_ldr_path, ul_
         input_dim = 1
 
     datasetDir = '/CIS32/zgx/Fed2/Data/'
-    modelDir = os.path.join(modelPath, dataset)  
+    modelDir = os.path.join('/CIS32/zgx/Unlearning/FedUnlearning/membership_inference', dataset)  
     
     #Create dataset and model directories
     # if not os.path.exists(datasetDir):

@@ -139,6 +139,7 @@ def train_attack_model(model,
                     optimizer,
                     lr_scheduler,
                     device,
+                    modelDir,
                     epochs=10,
                     b_size=20,
                     num_workers=1,
@@ -172,14 +173,15 @@ def train_attack_model(model,
     #n_train_samples = len(attackdataset) - n_validation
     #train_data, val_data = torch.utils.data.random_split(attackdataset, [n_train_samples, n_validation])
 
-    train_ratio = 0.7
+    train_ratio = 0.9
     train_len=int(len(attackdataset)*train_ratio)
     val_len=len(attackdataset)-train_len
 
     train_data, val_data = torch.utils.data.random_split(attackdataset, [train_len,val_len])
+    # print()
 
 
-    train_loader = torch.utils.data.DataLoader(dataset=train_data,
+    train_loader = torch.utils.data.DataLoader(dataset=attackdataset,
                                                 batch_size=b_size,
                                                 shuffle=True,
                                                 num_workers=num_workers)
@@ -205,7 +207,7 @@ def train_attack_model(model,
         print ('Epoch [{}/{}], Train Loss: {:.3f} | Train Acc: {:.2f}% | Val Loss: {:.3f} | Val Acc: {:.2f}%'
                  .format(i+1, epochs, train_loss, train_acc*100, valid_loss, valid_acc*100))
 
-        '''
+        path=os.path.join(modelDir,'best_attack_model.ckpt')
         if earlystopping: 
             if best_valacc<=valid_acc:
                 print('Saving model checkpoint')
@@ -225,7 +227,7 @@ def train_attack_model(model,
             #Store best model weights
             best_model = copy.deepcopy(model.state_dict())
             torch.save(best_model, path)
-        '''
+        
             
     return max(val_acc_hist)
 
@@ -262,7 +264,9 @@ def train_model(model,
     #Path for saving best target and shadow models
     target_path = os.path.join(model_path,'best_target_model.ckpt')
     shadow_path = os.path.join(model_path,'best_shadow_model.ckpt')
-    shadow_path='/CIS32/zgx/Unlearning/FedUnlearning/membership_inference/shadow_model.pkl'
+    
+    # shadow_path='/CIS32/zgx/Unlearning/FedUnlearning/membership_inference/shadow_model_0125.pkl'
+    # target_path=shadow_path
     
     for epoch in range(num_epochs):
         
@@ -302,7 +306,7 @@ def train_model(model,
             if is_target:
                 torch.save(best_model, target_path)
             else:
-                torch.save(best_model, '/CIS32/zgx/Unlearning/FedUnlearning/membership_inference/shadow_model.pkl')
+                torch.save(best_model, shadow_path)
     
     
     if is_target:

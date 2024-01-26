@@ -9,7 +9,6 @@ from torch.nn import parameter
 import torch.nn.functional as F
 import torch.optim as optim 
 import numpy as np
-from opacus import PrivacyEngine
 from models.losses.sign_loss import SignLoss
 from models.alexnet import AlexNet
 import time
@@ -389,7 +388,7 @@ class TrainerPrivate(object):
                 if model_mode=='MIA_model':
                     one_hot_loss=one_hot_CrossEntropy()
                     #print(pred.size(),y.size())
-                    loss +=one_hot_loss(pred, labels_batch)
+                    loss +=one_hot_loss(pred, labels_batch,num_classes)
 
                     #acc_meter += accuracy(pred, y)[0].item()
 
@@ -413,7 +412,7 @@ class TrainerPrivate(object):
                     prob=torch.cat((prob_a,prob_b),dim=1)
 
                     one_hot_loss=one_hot_CrossEntropy()
-                    utility_loss=one_hot_loss(prob, labels_batch)
+                    utility_loss=one_hot_loss(prob, labels_batch,num_classes)
 
                     # L2_loss=torch.nn.MSELoss()
                     # max_logits,_=torch.max(pred,dim=1)
@@ -424,7 +423,7 @@ class TrainerPrivate(object):
                     loss +=utility_loss
 
                     # loss += F.cross_entropy(pred, y)
-                    acc_meter += accuracy(pred[:,0:10], ground_labels)[0].item()
+                    acc_meter += accuracy(pred[:,0:num_classes], ground_labels)[0].item()
 
                 loss.backward(retain_graph=True)
                 self.optimizer.step() 
@@ -472,7 +471,7 @@ class TrainerPrivate(object):
                 loss_meter += F.cross_entropy(pred, target, reduction='sum').item() #sum up batch loss
                 pred = pred.max(1, keepdim=True)[1] # get the index of the max log-probability
                 acc_meter += pred.eq(target.view_as(pred)).sum().item()
-                # if len(dataloader)<1000:
+                # if len(dataloader)<100:
                 #     print('pred:',pred.squeeze()[0:15])
                 #     print('target:',target[0:15])
 
@@ -562,7 +561,7 @@ class TrainerPrivate(object):
 
                 one_hot_loss=one_hot_CrossEntropy()
                 #print(pred.size(),y.size())
-                loss_meter +=one_hot_loss(pred, target)
+                loss_meter +=one_hot_loss(pred, target,num_classes)
 
                 pred = pred[:,0:self.num_classes].max(1, keepdim=True)[1] # get the index of the max log-probability
                 acc_meter += pred.eq(ground_labels.view_as(pred)).sum().item()
@@ -608,12 +607,27 @@ class one_hot_CrossEntropy(torch.nn.Module):
     def __init__(self):
         super(one_hot_CrossEntropy,self).__init__()
     
+    def forward(self, x ,y,num_classes):
+        # P_i = torch.nn.functional.softmax(x, dim=1)
+        # num_classes=100
+        loss_a = y[:,0:num_classes] *torch.log(x[:,0:num_classes] + 0.0000001)
+        loss_b = y[:,num_classes:2*num_classes] *torch.log(x[:,num_classes:2*num_classes] + 0.0000001)
+
+        loss_a = -torch.mean(torch.sum(loss_a,dim=1),dim = 0)
+        loss_b = -torch.mean(torch.sum(loss_b,dim=1),dim = 0)
+        return loss_a+loss_b
+
+class _one_hot_CrossEntropy(torch.nn.Module):
+
+    def __init__(self):
+        super(one_hot_CrossEntropy,self).__init__()
+    
     def forward(self, x ,y):
         # P_i = torch.nn.functional.softmax(x, dim=1)
         
         loss = y*torch.log(x + 0.0000001)
         loss = -torch.mean(torch.sum(loss,dim=1),dim = 0)
-        return loss
+        return 5*loss
 
 
  

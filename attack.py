@@ -43,7 +43,7 @@ n_fc= [256, 128]
 #For CIFAR-10 and MNIST dataset
 num_classes = 10
 #No. of training epocs
-num_epochs = 50 
+num_epochs = 50
 #how many samples per batch to load
 batch_size = 128
 #learning rate
@@ -68,7 +68,7 @@ n_hidden_mnist = 32
 NUM_EPOCHS = num_epochs
 BATCH_SIZE = 32
 #Learning rate
-LR_ATTACK = 0.001 
+LR_ATTACK = 0.0001 
 #L2 Regulariser
 REG = 1e-7
 #weight decay
@@ -92,9 +92,9 @@ def get_cmd_arguments():
     
     # /CIS32/zgx/Unlearning/FedUnlearning/log_test_backdoor/amnesiac_ul_samples/0.02/alexnet/cifar10/Dp_False_0.1_iid_1_num_sign_0_w_type_gamma_loss_sign_B_0_alpha_0.2_num_back_0_type_True_T_0_epoch_200_E_2_u_10_1.0_50.9318_0.8721.pkl
     parser.add_argument('--trainTargetModel', default= False, action='store_true', help='Train a target model, if false then load an already trained model')
-    parser.add_argument('--trainShadowModel', default= True,action='store_true', help='Train a shadow model, if false then load an already trained model')
+    parser.add_argument('--trainShadowModel', default= False,action='store_true', help='Train a shadow model, if false then load an already trained model')
     parser.add_argument('--need_augm',action='store_true', default= False, help='To use data augmentation on target and shadow training set or not')
-    parser.add_argument('--need_topk',action='store_true', default= False, help='Flag to enable using Top 3 posteriors for attack data')
+    parser.add_argument('--need_topk',action='store_true', default= True, help='Flag to enable using Top 3 posteriors for attack data')
     parser.add_argument('--param_init', action='store_true', default= False, help='Flag to enable custom model params initialization')
     parser.add_argument('--verbose',action='store_true', default= False, help='Add Verbosity')
     return parser.parse_args()
@@ -512,6 +512,19 @@ def create_attack(dataset, dataPath, modelPath,model_pkl_path,data_ldr_path, tra
             pkl_state_dict=torch.load(model_pkl_path)
             target_model.load_state_dict(pkl_state_dict['net_info']['best_model'])
 
+        with open(data_ldr_path,'rb') as f:
+            dataloader_save = dill.load(f)
+            """ dataloader_save_dict={'train_ldr':train_ldr,
+                        "val_ldr":val_ldr,
+                        "ul_ldr":ul_ldr,
+                        "local_train_ldrs":local_train_ldrs,
+                        "ul_clients":self.ul_clients
+                        }
+            """
+        train_ldr=dataloader_save['train_ldr']
+        val_ldr=dataloader_save['val_ldr']
+        ul_ldr=dataloader_save['ul_ldr']
+
         print('---Peparing Attack Training data---')
         t_trainX, t_trainY = prepare_attack_data(target_model,t_train_loader,device,top_k)
         # normalize = transforms.Normalize(mean=[0.507, 0.487, 0.441], std=[0.267, 0.256, 0.276])
@@ -529,7 +542,7 @@ def create_attack(dataset, dataPath, modelPath,model_pkl_path,data_ldr_path, tra
         # t_test_loader=DataLoader(sub_test_set, batch_size=50,
         #                                     shuffle=False,
         #                                     num_workers=num_workers)
-        t_testX, t_testY = prepare_attack_data(target_model,t_test_loader,device,top_k,test_dataset=True)
+        t_testX, t_testY = prepare_attack_data(target_model,val_ldr,device,top_k,test_dataset=True)
         targetX = t_trainX + t_testX
         targetY = t_trainY + t_testY
 
@@ -581,87 +594,76 @@ def create_attack(dataset, dataPath, modelPath,model_pkl_path,data_ldr_path, tra
                                     need_earlystop,
                                     is_target=False)
     else: #Shadow model training not required, load the saved checkpoint
-        print('Using Shadow model at the path  ====> [{}] '.format(modelDir))
-        shadow_file = os.path.join(modelDir,'best_shadow_model.ckpt')
-        assert os.path.isfile(shadow_file), 'Shadow Mode Checkpoint not found, aborting load'
-        #Instantiate Shadow Model Class
-        if dataset == 'CIFAR10':
-            shadow_model = model.ShadowNet(input_dim,shadow_filters,img_size,num_classes).to(device)
-        else:
-            #Using less hidden units than target model to mimic the architecture
-            n_shadow_hidden = 16
-            shadow_model = model.MNISTNet(input_dim,n_shadow_hidden,num_classes).to(device)
-
-        #Load the saved model
-        shadow_model.load_state_dict(torch.load(shadow_file))
-        #Prepare dataset for training attack model
-        print('----Preparing Attack training data---')
-        trainX, trainY = prepare_attack_data(shadow_model,s_train_loader,device,top_k)
-        testX, testY = prepare_attack_data(shadow_model,s_test_loader,device,top_k,test_dataset=True)
-        shadowX = trainX + testX
-        shadowY = trainY + testY    
+        # print('Using Shadow model at the path  ====> [{}] '.format(modelDir))
+        # shadow_file = os.path.join(modelDir,'best_shadow_model.ckpt')
+        # assert os.path.isfile(shadow_file), 'Shadow Mode Checkpoint not found, aborting load'
+        # #Instantiate Shadow Model Class
+        # if dataset == 'CIFAR10':
+        #     shadow_model = model.ShadowNet(input_dim,shadow_filters,img_size,num_classes).to(device)
+        # else:
+        #     #Using less hidden units than target model to mimic the architecture
+        #     n_shadow_hidden = 16
+        #     shadow_model = model.MNISTNet(input_dim,n_shadow_hidden,num_classes).to(device)
+        pass
+        # #Load the saved model
+        # shadow_model.load_state_dict(torch.load(shadow_file))
+        # #Prepare dataset for training attack model
+        # print('----Preparing Attack training data---')
+        # trainX, trainY = prepare_attack_data(shadow_model,s_train_loader,device,top_k)
+        # testX, testY = prepare_attack_data(shadow_model,s_test_loader,device,top_k,test_dataset=True)
+        # shadowX = trainX + testX
+        # shadowY = trainY + testY    
     
 
     ###################################
     # Attack Model Training
     ##################################
     # The input dimension to MLP attack model
-    input_size =  10 #shadowX[0].size(1)
+    input_size = 3 # 10 #shadowX[0].size(1)
     print('Input Feature dim for Attack Model : [{}]'.format(input_size))
     
     attack_model = model.AttackMLP(input_size,n_hidden,out_classes).to(device)
-    
-    if (param_init):
-        #Initialize params
-        attack_model.apply(w_init)
+    if False:
+        if (param_init):
+            #Initialize params
+            attack_model.apply(w_init)
 
-    # Loss and optimizer
-    attack_loss = nn.CrossEntropyLoss()
-    attack_optimizer = torch.optim.Adam(attack_model.parameters(), lr=LR_ATTACK, weight_decay=REG)
-    attack_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(attack_optimizer,gamma=LR_DECAY)
+        # Loss and optimizer
+        attack_loss = nn.CrossEntropyLoss()
+        attack_optimizer = torch.optim.Adam(attack_model.parameters(), lr=LR_ATTACK, weight_decay=REG)
+        attack_lr_scheduler = torch.optim.lr_scheduler.ExponentialLR(attack_optimizer,gamma=LR_DECAY)
 
-    
-    #Feature vector and labels for training Attack model
-    attackdataset = (shadowX, shadowY)
+        
+        #Feature vector and labels for training Attack model
+        # attackdataset = (shadowX, shadowY)
 
-    attackdataset=(shadowX+t_testX, shadowY+t_testY)
+        attackdataset=(targetX,targetY)
 
-    
-    attack_valacc = train_attack_model(attack_model, attackdataset, attack_loss,
-                       attack_optimizer, attack_lr_scheduler, device,
-                        NUM_EPOCHS, BATCH_SIZE, num_workers, verbose)
+        
+        attack_valacc = train_attack_model(attack_model, attackdataset, attack_loss,
+                        attack_optimizer, attack_lr_scheduler, device,modelDir,
+                            NUM_EPOCHS, BATCH_SIZE, num_workers, verbose)
    
     
-    print('Validation Accuracy for the Best Attack Model is: {:.2f} %'.format(100* attack_valacc))
+        print('Validation Accuracy for the Best Attack Model is: {:.2f} %'.format(100* attack_valacc))
 
-    save_path='/CIS32/zgx/Unlearning/FedUnlearning/membership_inference/'+'mia_attack_model.pkl'
-    torch.save(attack_model.state_dict(),save_path)
+    save_path='/CIS32/zgx/Unlearning/FedUnlearning/membership_inference/'+'mia_attack_model_0125.pkl'
+    # torch.save(attack_model.state_dict(),save_path)
 
     #Load the trained attack model
-    attack_path = os.path.join(modelDir,'best_attack_model.ckpt')
+    # attack_path = os.path.join(modelDir,'best_attack_model.ckpt')
     attack_model.load_state_dict(torch.load(save_path))
 
 
     
     #Inference on trained attack model
     # 测试攻击效果，用ul_samples做测试
-    data_ldr_path
-    with open(data_ldr_path,'rb') as f:
-        dataloader_save = dill.load(f)
-        """ dataloader_save_dict={'train_ldr':train_ldr,
-                    "val_ldr":val_ldr,
-                    "ul_ldr":ul_ldr,
-                    "local_train_ldrs":local_train_ldrs,
-                    "ul_clients":self.ul_clients
-                    }
-        """
-    train_ldr=dataloader_save['train_ldr']
-    val_ldr=dataloader_save['val_ldr']
-    ul_ldr=dataloader_save['ul_ldr']
+    # data_ldr_path
 
-    mia_testX, mia_testY = prepare_attack_data(target_model,ul_ldr,device,top_k,test_dataset=False)
+
+    mia_testX, mia_testY = prepare_attack_data(target_model,train_ldr,device,top_k,test_dataset=False)
     attack_test_acc = attack_inference(attack_model, mia_testX, mia_testY, device)
-    print('attack_test_acc:',attack_test_acc)
+    print('attack_train_acc:',attack_test_acc)
 
 
 
@@ -669,14 +671,14 @@ def create_attack(dataset, dataPath, modelPath,model_pkl_path,data_ldr_path, tra
     attack_test_acc = attack_inference(attack_model, mia_testX, mia_testY, device)
     print('attack_test_acc:',attack_test_acc)
    
-    mia_testX, mia_testY = prepare_attack_data(target_model,train_ldr,device,top_k)
-    attack_test_acc = attack_inference(attack_model, mia_testX, mia_testY, device)
-    print('attack_test_acc:',attack_test_acc)
-    print(len(mia_testX))
+    # mia_testX, mia_testY = prepare_attack_data(target_model,train_ldr,device,top_k)
+    # attack_test_acc = attack_inference(attack_model, mia_testX, mia_testY, device)
+    # print('attack_test_acc:',attack_test_acc)
+    # print(len(mia_testX))
 
-    t_trainX, t_trainY = prepare_attack_data(target_model,t_train_loader,device,top_k)
-    attack_test_acc = attack_inference(attack_model, t_trainX, t_trainY, device)
-    print('attack_train_acc:',attack_test_acc)
+    # t_trainX, t_trainY = prepare_attack_data(target_model,t_train_loader,device,top_k)
+    # attack_test_acc = attack_inference(attack_model, t_trainX, t_trainY, device)
+    # print('attack_train_acc:',attack_test_acc)
 
 
 

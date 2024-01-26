@@ -195,7 +195,6 @@ class AttackMLP(nn.Module):
         out = self.classifier(x)
         return out
     '''
-
     def __init__(self, input_size, hidden_size=64,out_classes=2):
         super(AttackMLP, self).__init__()
         self.fc1 = nn.Linear(input_size, 256)
@@ -209,3 +208,29 @@ class AttackMLP(nn.Module):
         x = F.dropout(x, training=self.training)
         x = self.fc3(x)
         return x
+
+    # def __init__(self, input_size, hidden_size=64,out_classes=2):
+    #     super(AttackMLP, self).__init__()
+    #     # self.fc1 = nn.Linear(input_size, 256)
+    #     # self.fc2 = nn.Linear(256, 128)
+    #     # self.fc3 = nn.Linear(128, out_classes)
+    #     self.fc1 = nn.Linear(input_size, 128)
+    #     self.fc2 = nn.Linear(128, 256)
+    #     self.fc3 = nn.Linear(256, 128)
+    #     self.fc4 = nn.Linear(128, 64)
+    #     self.fc5 = nn.Linear(64, 32)        
+    #     self.fc6 = nn.Linear(32, out_classes)
+
+    # def forward(self, x):
+    #     x = F.relu(self.fc1(x))
+    #     x = F.dropout(x, training=self.training)
+    #     x = F.relu(self.fc2(x))
+    #     x = F.dropout(x, training=self.training)
+    #     x = F.relu(self.fc3(x))
+    #     x = F.dropout(x, training=self.training)
+    #     x = F.relu(self.fc4(x))
+    #     x = F.dropout(x, training=self.training)
+    #     x = F.relu(self.fc5(x))
+    #     x = F.dropout(x, training=self.training)
+    #     x = self.fc6(x)
+    #     return x

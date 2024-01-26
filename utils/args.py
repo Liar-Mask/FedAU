@@ -81,7 +81,7 @@ def parser_args():
     
     
     # ============================ Model arguments ===================================
-    parser.add_argument('--model_name', type=str, default='alexnet', choices=['lenet','alexnet', 'resnet','resnet18'],  #, 'resnet20','ResNet18'
+    parser.add_argument('--model_name', type=str, default='alexnet', choices=['lenet','alexnet', 'resnet','resnet18','resnet34'],  #, 'resnet20','ResNet18'
                         help='model architecture name')
     
     parser.add_argument('--dataset', type=str, default='cifar10', help="name of dataset")

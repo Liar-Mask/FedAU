@@ -22,11 +22,12 @@ seed=6  # gamma=0.5, alpha=0.6
 seed=7  
 seed=19 # gamma=0.9 alpha=0.9
 seed=20 # gamma=0.3 alpha=0.9
+seed=0
 num_users=10
 samples_per_user=5000
 lr_up=common
 lr=0.01
-epochs=200
+epochs=100
 local_ep=2
 num_ul_users=1
 ul_mode='ul_samples_whole_client'
@@ -34,7 +35,7 @@ ul_mode='ul_samples_whole_client'
 proportion=0.05
 gamma=0.5
 alpha=0.9
-CUDA_VISIBLE_DEVICES=0 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
+CUDA_VISIBLE_DEVICES=3 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_client/${ul_mode}/${proportion} \
  --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user  --ul_client_gamma $gamma --ul_samples_alpha $alpha &
 
@@ -69,9 +70,9 @@ local_ep=2
 num_ul_users=1
 ul_mode='amnesiac_ul_samples_client'
 
-proportion=0.02
+proportion=0.05
 # 单卡
-CUDA_VISIBLE_DEVICES=0 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
+CUDA_VISIBLE_DEVICES=2 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs\
  --proportion $proportion --num_ul_users 1 --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_client/${ul_mode}/${proportion} \
  --lr $lr --lr_up $lr_up --samples_per_user $samples_per_user &
 

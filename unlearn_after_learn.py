@@ -74,7 +74,7 @@ class Unlearn_after_Learn(Experiment):
         # self.model_ul=model_ul.to(self.device)
         
         pkl_state_dict=torch.load(pkl_path)
-        self.model.load_state_dict(pkl_state_dict['net_info']['best_model'])
+        self.model.load_state_dict(pkl_state_dict['model_state_dict'])
 
         # for name in self.model.named_modules():
         #     print(name)
@@ -227,9 +227,9 @@ class Unlearn_after_Learn(Experiment):
 
     def amnesiac_unlearning(self):#,update_path, model_path, data_ldr_path
 
-        model_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.02/alexnet/cifar10/Final_s0_iid1_epoch_200_E_2_batch32_lr0.01_c_10_1.0_35.3739_0.8736.pkl'
-        update_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.02/alexnet/cifar10/FedUL_updates_list_s0_e199_10_32_0.01_1_2024_1_16_2024_01_16_050000.pkl'
-        data_ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.02/alexnet/cifar10/FedUL_dataloader_s0_10_32_0.01_1_2024_1_16.pkl'
+        model_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_class/amnesiac_ul_class/alexnet/cifar10/FedUL_model_s101_10_32_0.01_1_2024_1_24.pkl'
+        update_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_class/amnesiac_ul_class/alexnet/cifar10/FedUL_updates_list_s101_e199_10_32_0.01_1_2024_1_24_2024_01_24_204747.pkl'
+        data_ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_class/amnesiac_ul_class/alexnet/cifar10/FedUL_dataloader_s101_10_32_0.01_1_2024_1_24.pkl'
         if args.dataset == 'cifar10':
             in_channels=3
         elif args.dataset=='mnist':
@@ -252,7 +252,7 @@ class Unlearn_after_Learn(Experiment):
         update_list=torch.load(update_path)
         update_sum=update_list[0]
 
-        ul_mode='amnesiac_ul_samples_client'
+        ul_mode='amnesiac_ul_class'
         epochs=200
 
         if 'samples' in ul_mode and 'client' not in ul_mode:
@@ -262,7 +262,7 @@ class Unlearn_after_Learn(Experiment):
         elif 'class' in ul_mode or  'client'  in ul_mode:
             start_epoch=int(0.5 * epochs)
             # scale=1/self.num_users
-            scale=1.0
+            scale=1/10
         pretrained_state_dict=copy.deepcopy(self.model.state_dict())
         self.trainer = TrainerPrivate(self.model, self.device, self.dp, self.sigma,self.num_classes,'none')
         loss_val_mean, acc_val_mean = self.trainer.test(val_ldr)
@@ -271,13 +271,15 @@ class Unlearn_after_Learn(Experiment):
 
         
         for epoch in range(start_epoch,epochs):
+            if epoch==120:
+                break
             am_start=time.time()
             for param_name in update_sum:
-                update_sum[param_name]+=update_list[epoch + 1 - start_epoch][param_name]
+                update_sum[param_name]+=update_list[epoch + 1- start_epoch ][param_name] # 
             amnesiac_state_dict=copy.deepcopy(pretrained_state_dict)
             with torch.no_grad():
                 for param_name in update_sum:
-                    amnesiac_state_dict[param_name]-=update_sum[param_name] *scale
+                    amnesiac_state_dict[param_name]-=update_sum[param_name] *0.02
                 self.model.load_state_dict(amnesiac_state_dict)   
             end_time=time.time()
             print('----Epoch {}  cost time: {}'.format(epoch,am_start - end_time))
@@ -288,10 +290,14 @@ class Unlearn_after_Learn(Experiment):
             
             loss_ul_mean, acc_ul_mean = self.trainer.ul_test(ul_ldr)
 
+            save_path='/CIS32/zgx/Unlearning/FedUnlearning/baselines/models/amnesiac_model_sub.pkl'
+            torch.save(copy.deepcopy(self.model.state_dict()),save_path)
+
             self.model.load_state_dict(pretrained_state_dict) #重新加载回global model
 
             print("Epoch: {} -- Unlearned Val acc {:.4f} -- Unlearn effect {:.4f}".format(epoch,acc_ul_val_mean,acc_ul_mean)
                     )
+
 
     def federaser_unlearning(self):
         
@@ -415,10 +421,10 @@ class Unlearn_after_Learn(Experiment):
 
     def fedrecovery(self):
         ## 0.02
-        old_model_dict_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/federaser_ul_samples_client/0.02/alexnet/cifar10/FedUL_model_state_lists_s29_10_32_0.01_1_2024_1_23.pkl'
+        old_model_dict_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.05/alexnet/cifar10/FedUL_model_state_lists_s101_10_32_0.01_1_2024_1_24.pkl'
         # lenet_state_pkl_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/federaser_ul_samples_client/0.02/lenet/mnist/FedUL_model_state_lists_s19_10_32_0.01_1_2024_1_23.pkl'
-        model_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/federaser_ul_samples_client/0.02/alexnet/cifar10/FedUL_model_s29_10_32_0.01_1_2024_1_23.pkl'
-        data_ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/federaser_ul_samples_client/0.02/alexnet/cifar10/FedUL_dataloader_s29_10_32_0.01_1_2024_1_23.pkl'
+        model_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.05/alexnet/cifar10/FedUL_model_s101_10_32_0.01_1_2024_1_24.pkl'
+        data_ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/amnesiac_ul_samples_client/0.05/alexnet/cifar10/FedUL_dataloader_s101_10_32_0.01_1_2024_1_24.pkl'
         
 
         # old_model_dict_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_client/federaser_ul_samples_client/0.02/lenet/mnist/FedUL_model_state_lists_s19_10_32_0.01_1_2024_1_23.pkl'
@@ -460,19 +466,19 @@ class Unlearn_after_Learn(Experiment):
         old_model_dicts=torch.load(old_model_dict_path)
         old_global_model_list=old_model_dicts['old_global_model_list']
         old_local_model_list=old_model_dicts['old_local_model_list']
-        for name ,_ in old_global_model_list[0].items():
-            print(old_global_model_list[150][name])
-            print(old_global_model_list[100][name])
-            break
-        assert 0
-        recovery_trainer = TrainerPrivate(self.model, self.device, self.dp, self.sigma,self.num_classes,'none')
+        # for name ,_ in old_global_model_list[0].items():
+        #     print(old_global_model_list[150][name])
+        #     print(old_global_model_list[100][name])
+        #     break
+        # assert 0
+        
         # eraser_lr=0.01
         ers_total_time=0
         # idxs_users = np.random.choice(range(self.num_users), self.num_users, replace=False)
 
         file_name = "_".join(
                 ['FedRecovery', str(args.ul_mode), f's{args.seed}',str(args.num_users), str(args.batch_size),str(args.lr), str(args.lr_up), str(args.iid)])
-        log_dir='log_test_client/federaser_ul_samples_client/0.02/alexnet/cifar10'
+        log_dir='log_test_client/fedrecovery/0.05/alexnet/cifar10'
 
         if not os.path.exists(log_dir):
             os.makedirs(log_dir)
@@ -481,14 +487,14 @@ class Unlearn_after_Learn(Experiment):
 
         # ers_start=time.time()
         # federaser unlearning operation
-        for std in [0.020,0.022,0.025,0.028,0.030,0.032,0.034,0.036,0.038,0.040]:
+        for std in [0.020,0.022,0.025]: #,0.028,0.030,0.032,0.034,0.036,0.038,0.040]:
             recovery_state_dict=fedrecovery_operation(old_local_model_list, old_global_model_list, ul_client,std)
             self.model.load_state_dict(recovery_state_dict)
 
             # ers_end = time.time()
             # ers_interval_time = ers_end - ers_start
             # ers_total_time+=ers_interval_time
-
+            recovery_trainer = TrainerPrivate(self.model, self.device, self.dp, self.sigma,self.num_classes,'none')
             # testing
             loss_eraser_train_mean, acc_eraser_train_mean = recovery_trainer.test(train_ldr)
             loss_val_eraser__mean, acc_eraser_val_mean = recovery_trainer.test(val_ldr)
@@ -508,7 +514,7 @@ class Unlearn_after_Learn(Experiment):
                 f.write('\n')
         
         eraser_pkl_name = "_".join(
-                    ['FedUL_model', f's{self.args.seed}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid)])
+                    ['FedRCV_model', f's{self.args.seed}', str(args.num_users), str(args.batch_size),str(args.lr), str(args.iid)])
         eraser_pkl_name=log_dir+'/'+ eraser_pkl_name
         print("eraser_pkl_name:",eraser_pkl_name)
 
@@ -527,11 +533,7 @@ class Unlearn_after_Learn(Experiment):
         pkl_state_dict=torch.load(model_path)
         self.model.load_state_dict(pkl_state_dict['model_state_dict'])
         self.model_ul.load_state_dict(pkl_state_dict['model_ul_state_dict'])
-
-
-        
-
-
+    
         ers_start=time.time()
         alpha=0.9
         ul_state_dict=copy.deepcopy(self.model.state_dict())
@@ -571,7 +573,7 @@ def main(args):
     # save_dir = args.save_dir
     save_dir=args.log_folder_name
     unlearn_after_learn = Unlearn_after_Learn(args)
-    ul_mode='fedrecovery'
+    ul_mode='amnesiac_ul'
     if ul_mode=='class_pruning':
         sparsity=args.class_prune_sparsity
         unlearn_class=args.class_prune_target
