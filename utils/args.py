@@ -53,6 +53,8 @@ def parser_args():
                          help="exponential weight decay")
     parser.add_argument('--iid',type=int, default=1,
                         help='dataset is split iid or not')
+    parser.add_argument('--fine_tune_mode',type=int, default=0,
+                        help='the model is fine-tuned or not')
     parser.add_argument('--beta', type=float, default=1,
                         help='Non-iid Dirichlet param')
     parser.add_argument('--wd', type=float, default=1e-5,
@@ -88,6 +90,8 @@ def parser_args():
     
     parser.add_argument('--data_root', default='/CIS32/zgx/Fed2/Data',
                         help='dataset directory')
+    parser.add_argument('--pretrain_model_root', default='/CIS32/zgx/Unlearning/FedUnlearning/log_test_pretrain',
+                        help='the saved pre-trained model directory')
 
     # =========================== Other parameters ===================================
     parser.add_argument('--gpu', default='1', type=str)

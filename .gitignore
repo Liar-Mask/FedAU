@@ -2,3 +2,8 @@ log*
 fig*
 _pycache_/
 nni*
+configs/
+membership_inference/
+gen_tensor_dataset.py
+attack*
+

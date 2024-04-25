@@ -15,12 +15,28 @@ seed=5 # resnet18 bs=128, alpha=0.8
 seed=7 # resnet18  bacth_size=128, learn based W1
 seed=8 # resnet18  bacth_size=128, learn based W1 , correct labels
 seed=9 # backdoor 1%
+
+
 num_users=10
 lr_up=common
 lr=0.01
-epochs=100
+epochs=200
 local_ep=2
-num_ul_users=1
+num_ul_users=0
+
+ul_mode='none'
+# ul_mode='retrain_samples'
+
+batch_size=128
+proportion=0.01
+alpha=0.9
+CUDA_VISIBLE_DEVICES=1 python main_zgx.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs --batch_size $batch_size\
+ --proportion $proportion --num_ul_users $num_ul_users --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_pretrain \
+ --lr $lr --lr_up $lr_up  &
+
+CUDA_VISIBLE_DEVICES=0 python unlearn_pretrain.py --seed $seed --num_users $num_users --dataset $dataset --model_name $model --epochs $epochs --batch_size $batch_size\
+ --proportion $proportion --num_ul_users $num_ul_users --ul_mode $ul_mode --local_ep $local_ep --log_folder_name log_test_finetune \
+ --lr $lr --lr_up $lr_up
 
 ul_mode='ul_samples_backdoor'
 # ul_mode='retrain_samples'

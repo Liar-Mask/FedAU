@@ -156,6 +156,12 @@ class IPRFederatedLearning(Experiment):
         #         if i <100:
         #             print('error batch:',y)
         #             break
+        if args.num_ul_users == 0:
+            ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_time/ul_samples/ul_samples_backdoor/alexnet/cifar10/FedUL_dataloader_s1_10_32_0.01_1_2024_1_18.pkl'
+            
+            with open(ldr_path,'rb') as f:
+                ldrs=dill.load(f)
+            ul_ldr=ldrs['ul_ldr']
 
             
         # 不区分iid 和 non iid --unlearn code上
@@ -201,6 +207,8 @@ class IPRFederatedLearning(Experiment):
             dill.dump(dataloader_save_dict, f)
 
         total_time=0
+        sum_learn_time=0
+        sum_unlearn_time=0
         time_mark=str(time.strftime("%Y_%m_%d_%H%M%S", time.localtime()))
         file_name = "_".join(
                 ['FedUL', str(args.ul_mode), f's{args.seed}',str(args.num_users), str(args.batch_size),str(args.lr), str(args.lr_up), str(args.iid), time_mark])
@@ -262,18 +270,22 @@ class IPRFederatedLearning(Experiment):
             for idx in tqdm(idxs_users, desc='Epoch:%d, lr:%f' % (self.epochs, self.lr)):
  
                 if (idx in self.ul_clients) ==False:
+                    
                     # print(idx,"True1000000")
                     self.model.load_state_dict(global_state_dict) # 还原 global model
-                    
+                    start_normal = time.time()
                     local_w, local_loss= self.trainer._local_update(local_train_ldrs[idx], self.local_ep, self.lr, self.optim) 
+                    end_normal=time.time()
                     local_ws.append(copy.deepcopy(local_w))
                     local_losses.append(local_loss)
                     if 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
                         local_models_per_epoch.append(copy.deepcopy(local_w))
+                    
                 else:
+                    # start_ul=time.time()
                     # print(idx,"False1000000")
                     if self.ul_mode.startswith('ul_'):
-
+                        
                         # print("ul-idx:",idx)
                         self.model_ul.load_state_dict(ul_state_dicts[idx])
                         # ul_model除W2外替换为global model的参数
@@ -287,8 +299,9 @@ class IPRFederatedLearning(Experiment):
                             temp_state_dict['classifier_ul.bias']= (1-gamma) * temp_state_dict['classifier.bias'] + gamma * temp_state_dict['classifier_ul.bias']
                             self.model_ul.load_state_dict(temp_state_dict)
                         # 参数替换完毕，开始训练
+                        start_ul=time.time()
                         local_w_ul, local_loss, classify_loss, normalize_loss= self.trainer_ul._local_update_ul(local_train_ldrs[idx], self.local_ep, self.lr, self.optim,self.ul_class_id) 
-                        
+                        end_ul=time.time()
                         # 本次ul_model结果保存（用于下轮更新W2）
                         ul_state_dicts[idx]=copy.deepcopy(local_w_ul)
                         # 提取W1 (全局模型加载W1，保存到待avg列表中)
@@ -298,6 +311,7 @@ class IPRFederatedLearning(Experiment):
                         # print('**** local class loss: {:.4f}  local class acc: {:.4f}****'.format(class_loss,class_acc))
                         
                         local_ws.append(copy.deepcopy(self.model.state_dict()))
+                        
 
                     elif 'retrain' in self.ul_mode and self.ul_mode !='retrain_samples_client':   # retrain scheme
                         print('retrain')
@@ -330,6 +344,7 @@ class IPRFederatedLearning(Experiment):
                         local_ws.append(copy.deepcopy(local_w))
                         local_losses.append(local_loss)
                         local_models_per_epoch.append(copy.deepcopy(local_w))
+                    
                     
 
                 
@@ -398,8 +413,13 @@ class IPRFederatedLearning(Experiment):
             
 
             end = time.time()
+
+            training_time_normal=end_normal-start_normal
+            training_time_ul=end_ul-start_ul
             interval_time = end - start
             total_time+=interval_time
+            sum_learn_time+=training_time_normal
+            sum_unlearn_time+=training_time_ul
             '''
             测试global model和ul_model效果
             '''
@@ -407,6 +427,7 @@ class IPRFederatedLearning(Experiment):
                 loss_train_mean, acc_train_mean = self.trainer.test(train_ldr)
                 loss_val_mean, acc_val_mean = self.trainer.test(val_ldr)
                 print('----test before ul ----')
+
                 loss_class_mean, acc_before_mean = self.trainer.test(ul_ldr)  #测试ul之前, global model对该类别样本的识别效果
                 print('------test end-----')
                 loss_test_mean, acc_test_mean = loss_val_mean, acc_val_mean
@@ -515,9 +536,9 @@ class IPRFederatedLearning(Experiment):
                     self.logs['best_test_loss'] = loss_val_mean
                     self.logs['best_model'] = copy.deepcopy(self.model.state_dict())
 
-                print('Epoch {}/{}  --time {:.1f}'.format(
+                print('Epoch {}/{}  --time {:.1f} --learn time {:.2f} --unlearn time {:.2f}'.format(
                     epoch, self.epochs,
-                    interval_time
+                    interval_time, training_time_normal,training_time_ul
                 )
                 )
 
@@ -537,8 +558,12 @@ class IPRFederatedLearning(Experiment):
                 # with open(fn, 'a', encoding = 'utf-8') as f:   
                 #     f.write(s)
                 #     f.write('\n')
+                
+
                 with open(fn,"a") as f:
-                    json.dump({"epoch":epoch,"lr":round(self.lr,4),"train_acc":round(acc_train_mean,4  ),"test_acc":round(acc_val_mean,4),"UL set acc":round(acc_before_mean,4),"UL val acc":round(acc_ul_val_mean,4),"UL effect":round(acc_ul_mean,4),"time":round(total_time,2)},f)
+                    json.dump({"epoch":epoch,"lr":round(self.lr,4),"train_acc":round(acc_train_mean,4  ),"test_acc":round(acc_val_mean,4),\
+                                "UL set acc":round(acc_before_mean,4),"UL val acc":round(acc_ul_val_mean,4),"UL effect":round(acc_ul_mean,4),\
+                                "time":round(total_time,2),"learn_time":round(sum_learn_time,2),"unlearntime":round(sum_unlearn_time,2)},f)
                     f.write('\n')
             
             if (epoch+1) % 10==0:

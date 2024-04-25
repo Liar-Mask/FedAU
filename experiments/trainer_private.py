@@ -248,14 +248,25 @@ class TrainerPrivate(object):
             ul_mode_train=ul_mode_train
         # print('ul_mode_train:',ul_mode_train)
 
+        fine_tune_mode=0
+        if fine_tune_mode==1:
+            for name,param in self.model.named_parameters():
+                if 'ul' not in name:
+                    param.requires_grad=False
+                else:
+                    param.requires_grad = True
+                    # print('Fine tune part:',name)
+
         if optim_choice=="sgd":
         
-            self.optimizer = optim.SGD(self.model.parameters(),
-                                lr,
+            self.optimizer = optim.SGD(filter(lambda p: p.requires_grad,self.model.parameters()),
+                                # self.model.parameters(),
+                                lr=lr,
                                 momentum=0.9,
                                 weight_decay=0.0005)
         else:
-             self.optimizer = optim.AdamW(self.model.parameters(),
+             self.optimizer = optim.AdamW(filter(lambda p: p.requires_grad,self.model.parameters()),
+                                # self.model.parameters(),
                                 lr,
                                 weight_decay=0.0005)
 

@@ -122,6 +122,8 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
                 test_set=DatasetSplit(test_set, splited_ulclass_idxs)
                 print('ul_test_set len:',len(ul_test_set))
                 print('normal test_set len:',len(test_set))
+            else:
+                ul_test_set={}
             ## iid数据划分
             dict_users, train_idxs, val_idxs = cifar_iid_ul(train_set, num_users, UL_clients, ul_mode)
 
@@ -311,6 +313,8 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
                 test_set=DatasetSplit(test_set, splited_ulclass_idxs)
                 print('ul_test_set len:',len(ul_test_set))
                 print('normal test_set len:',len(test_set))
+            else:
+                ul_test_set={}
             dict_users, train_idxs, val_idxs = cifar_iid_ul(train_set, num_users, UL_clients, ul_mode)    
         else:
             private_samples_idxs=[]
@@ -491,6 +495,8 @@ def get_data(dataset, data_root,proportion, iid, num_users,UL_clients, data_aug,
             test_set=DatasetSplit(test_set, splited_ulclass_idxs)
             print('ul_test_set len:',len(ul_test_set))
             print('normal test_set len:',len(test_set))
+        else:
+            ul_test_set={}
         ## iid数据划分
         dict_users, train_idxs, val_idxs = cifar_iid_ul(train_set, num_users, UL_clients, ul_mode)
 
