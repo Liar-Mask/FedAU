@@ -1,0 +1,12 @@
+dill==0.3.8
+matplotlib==3.7.5
+nni==3.0
+numpy==1.24.4
+opacus==1.4.1
+Pillow==10.3.0
+scikit_learn==1.4.2
+scipy==1.13.0
+torch==1.8.1+cu111
+torchsummary==1.5.1
+torchvision==0.9.1+cu111
+tqdm==4.66.2
