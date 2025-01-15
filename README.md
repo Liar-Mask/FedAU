@@ -31,20 +31,20 @@ There three unlearning modes supported by FedAU:
 
 ```python
 python main_zgx.py --num_users 10 --dataset cifar10 --model_name alexnet --epochs 200 --batch_size 128 \
- --proportion 0.01 --num_ul_users 1 --ul_mode 'ul_samples_backdoor' --local_ep 2 --log_folder_name ul_samples/
+ --proportion 0.01 --num_ul_users 1 --ul_mode 'ul_samples_backdoor' --local_ep 2 --log_folder_name ul_samples
 ```
 
 **2. Unlearn Class**
 
 ```python
 python main_zgx.py --num_users 10 --dataset cifar10 --model_name alexnet --epochs 200 --batch_size 128 \
- --num_ul_users 1 --ul_mode 'ul_class' --local_ep 2 --log_folder_name ul_class/
+ --num_ul_users 1 --ul_mode 'ul_class' --local_ep 2 --log_folder_name ul_class
 ```
 
 **3. Unlean Client**
 
 ```python
 python main_zgx.py --num_users 10 --dataset cifar10 --model_name alexnet --epochs 200 --batch_size 128 \
- --num_ul_users 1 --ul_mode 'ul_class' --local_ep 2 --log_folder_name ul_client/
+ --num_ul_users 1 --ul_mode 'ul_class' --local_ep 2 --log_folder_name ul_client
 ```
 

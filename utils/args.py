@@ -29,7 +29,7 @@ def parser_args():
                         help="defense scheme")
     parser.add_argument('--d_scale', type=float, default=0.0,
                         help="number of users: K")
-    parser.add_argument('--save_dir', type=str, default='../FedUL_test/',
+    parser.add_argument('--save_dir', type=str, default='../FedAU_test/',
                         help='saving path')
     parser.add_argument('--log_folder_name', type=str, default='/training_log_correct_iid/',
                         help='saving path')
@@ -45,7 +45,7 @@ def parser_args():
                         help="learning rate")
     parser.add_argument('--lr', type=float, default=0.01,
                         help="learning rate for inner update")
-    parser.add_argument('--lr_up', type=str, default='milestone',
+    parser.add_argument('--lr_up', type=str, default='common',
                         help='optimizer: [common, milestone, cosine]')
     parser.add_argument('--schedule_milestone', type=list, default=[225,325],
                          help="schedule lr")
@@ -88,9 +88,9 @@ def parser_args():
     
     parser.add_argument('--dataset', type=str, default='cifar10', help="name of dataset")
     
-    parser.add_argument('--data_root', default='/CIS32/zgx/Fed2/Data',
+    parser.add_argument('--data_root', default='../Data',
                         help='dataset directory')
-    parser.add_argument('--pretrain_model_root', default='/CIS32/zgx/Unlearning/FedUnlearning/log_test_pretrain',
+    parser.add_argument('--pretrain_model_root', default='FedAU/log_test_pretrain',
                         help='the saved pre-trained model directory')
 
     # =========================== Other parameters ===================================
@@ -112,42 +112,6 @@ def parser_args():
     default=1e4,
     help="Clip per-sample gradients to this norm",
     )
-
-  
-    # =========================== IPR parameters ===================================
-    
-    parser.add_argument('--norm-type', default='bn', choices=['bn', 'gn', 'in', 'none'],
-                        help='norm type (default: bn)')
-    parser.add_argument('--key-type', choices=['random', 'image', 'shuffle'], default='shuffle',
-                        help='passport key type (default: shuffle)')
-    # signature argument
-
-    parser.add_argument('--num_sign', type=int, default=0,
-                        help="number of signature users: K")
-
-    parser.add_argument('--weight_type', default='gamma', choices=['gamma', 'kernel'],
-                        help='weight-type (default: gamma)')
-    
-    parser.add_argument('--num_bit', type=int, default=0,
-                        help="number of signature bits")
-
-    parser.add_argument('--loss_type', default='sign', choices=['sign', 'CE'],
-                        help='loss type (default: sign)')
-
-    parser.add_argument('--loss_alpha', type=float, default= 0.2,
-                        help='sign loss scale factor to trainable (default: 0.2)')
-
-    # backdoor argument 
-    parser.add_argument('--backdoor_indis', action='store_false', default=True,
-                        help='backdoor in distribution')
-    parser.add_argument('--num_back', type=int, default=0,
-                        help="number of backdoor users: K")
-    parser.add_argument('--num_trigger', type=int, default=0,
-                        help="number of signature bits")
-
-    # paths
-    parser.add_argument('--passport-config', default='passport_configs/alexnet_passport.json',
-                        help='should be same json file as arch')
 
     # misc
     parser.add_argument('--save-interval', type=int, default=0,

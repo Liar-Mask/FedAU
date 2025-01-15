@@ -9,7 +9,6 @@ from torch.nn import parameter
 import torch.nn.functional as F
 import torch.optim as optim 
 import numpy as np
-from models.losses.sign_loss import SignLoss
 from models.alexnet import AlexNet
 import time
 import random

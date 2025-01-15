@@ -1,10 +1,11 @@
 log*
 fig*
-_pycache_/
+*_pycache_/
 nni*
 configs/
 membership_inference/
 gen_tensor_dataset.py
 attack*
 *_pycache*
+ul_*/
 

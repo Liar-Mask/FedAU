@@ -27,26 +27,21 @@ from dataset import CIFAR10, CIFAR100
 from baselines.federaser_base import eraser_unlearning
 # import wandb
 
-class IPRFederatedLearning(Experiment):
+class FederatedLearning(Experiment):
     """
-    Perform federated learning
+    Perform federated learning before unlearning operation
+    Prepare models, gradients and other data for baselines such as class pruning, federaser, fedrecovery.
     """
     def __init__(self, args):
         super().__init__(args) # define many self attributes from args
-        self.watch_train_client_id=0
-        self.watch_val_client_id=1
-
         self.criterion = torch.nn.CrossEntropyLoss()
         self.in_channels = 3
         self.optim=args.optim
-        self.num_bit = args.num_bit
-        self.num_trigger = args.num_trigger
         self.proportion=args.proportion
         if args.ul_mode=='ul_class' or args.ul_mode=='retrain_class':
             self.proportion=1.0
         self.dp = args.dp
         self.sigma = args.sigma
-        self.cosine_attack =args.cosine_attack  
         self.sigma_sgd = args.sigma_sgd
         self.grad_norm=args.grad_norm
         self.save_dir = args.save_dir
@@ -85,17 +80,7 @@ class IPRFederatedLearning(Experiment):
             self.num_classes = 10
             self.in_channels=1
             # self.dataset_size = 60000
-        elif self.args.dataset == 'dermnet':
-            self.num_classes = 23
-            # self.dataset_size = 19500
-        elif self.args.dataset == 'oct':
-            self.num_classes = 4
-            # self.dataset_size = 19500
      
-        self.MIA_trainset_dir=[]
-        self.MIA_valset_dir=[]
-        self.MIA_trainset_dir_cos=[]
-        self.MIA_valset_dir_cos=[]
         self.train_idxs_cos=[]
         self.testset_idx=(50000+np.arange(10000)).astype(int) # 最后10000样本的作为test set
         self.testset_idx_cos=(50000+np.arange(1000)).astype(int)
@@ -138,9 +123,7 @@ class IPRFederatedLearning(Experiment):
         # torch.backends.cudnn.benchmark = True
         print('Total params: %.2f' % (sum(p.numel() for p in model.parameters())))
 
-        pkl_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_pretrain/alexnet/cifar10/FedUL_model_s1_10_128_0.01_1_2024_3_20.pkl'
-        
-        pth_path='/CIS32/zgx/Unlearning/pytorch-cifar/checkpoint/ckpt.pth'
+        pth_path='/CIS32/zgx/Unlearning/pytorch-cifar/checkpoint/ckpt.pth' # a pretrained alexnet or resnet model
         saved_models=torch.load(pth_path)
         self.model.load_state_dict(saved_models['net'])
         self.model_ul.load_state_dict(saved_models['net'],strict=False)
@@ -166,9 +149,6 @@ class IPRFederatedLearning(Experiment):
         temp_state_dict_au['classifier_ul.weight']= saved_models['net']['classifier.weight'] 
         temp_state_dict_au['classifier_ul.bias']= saved_models['net']['classifier.bias'] 
         self.ul_module.load_state_dict(temp_state_dict_au)
-
-        
-
 
 
     def train(self):
@@ -329,6 +309,8 @@ class IPRFederatedLearning(Experiment):
                         milestones=[275,400]
                     elif args.epochs==300:
                         milestones=[150,225]
+                    else:
+                        milestones=[int(args.epochs/3), int(args.epochs/3)*2]
                     
                     if epoch in milestones:
                         self.lr *= 0.1
@@ -525,16 +507,6 @@ class IPRFederatedLearning(Experiment):
 
         return self.logs, interval_time, self.logs['best_test_acc'], acc_test_mean, 
 
-
-    def _fed_avg_ldh(self,global_model, local_ws, client_weights, lr_outer ): # conduct fedavg with local delta w
-        w_avg=copy.deepcopy(global_model)
-        client_weights=1.0/len(local_ws)
-        # print('client_weights:',client_weights)
-        for k in w_avg.keys():
-            for i in range(0, len(local_ws)):
-                w_avg[k] += local_ws[i][k] * client_weights*lr_outer
-            self.w_t[k] = w_avg[k]
-        return w_avg
     
     def fed_avg(self, local_ws, client_weights, lr_outer):
 
@@ -581,7 +553,7 @@ def main(args):
     # args.save_dir=""
     # save_dir = args.save_dir
     save_dir=args.log_folder_name
-    fl = IPRFederatedLearning(args)
+    fl = FederatedLearning(args)
 
     logg, time, best_test_acc, test_acc = fl.train()                                         
                                              

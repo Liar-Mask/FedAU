@@ -24,13 +24,11 @@ from baselines.fedrecovery_base import fedrecovery_operation
 
 class Unlearn_after_Learn(Experiment):
     """
-    Perform federated learning
+    Implement unlearning baselines including amnesiac_ul, federaser, fedrecovery using the python file in baselines
+    After running the unlearn_pretrain.py
     """
     def __init__(self, args):
         super().__init__(args) # define many self attributes from args
-        self.watch_train_client_id=0
-        self.watch_val_client_id=1
-
         self.criterion = torch.nn.CrossEntropyLoss()
         self.in_channels = 3
         self.optim=args.optim

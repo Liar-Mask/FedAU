@@ -27,20 +27,15 @@ from dataset import CIFAR10, CIFAR100
 from baselines.federaser_base import eraser_unlearning
 # import wandb
 
-class IPRFederatedLearning(Experiment):
+class FederatedLearning(Experiment):
     """
     Perform federated learning
     """
     def __init__(self, args):
         super().__init__(args) # define many self attributes from args
-        self.watch_train_client_id=0
-        self.watch_val_client_id=1
-
         self.criterion = torch.nn.CrossEntropyLoss()
         self.in_channels = 3
         self.optim=args.optim
-        self.num_bit = args.num_bit
-        self.num_trigger = args.num_trigger
         self.proportion=args.proportion
         if args.ul_mode=='ul_class' or args.ul_mode=='retrain_class':
             self.proportion=1.0
@@ -71,14 +66,6 @@ class IPRFederatedLearning(Experiment):
                                                         ul_mode=self.ul_mode,
                                                         ul_class_id=self.ul_class_id
                                                         )
-        # self.train_idxs # dict id 2 array
-        # self.val_idxs_for_mia=[]
-        # for i in range(self.num_users):
-        #     if i == self.watch_train_client_id:
-        #         continue
-        #     self.val_idxs_for_mia.extend(self.train_idxs[i])
-        # random.shuffle (self.val_idxs_for_mia )
-        # self.val_idxs_for_mia=self.val_idxs_for_mia[0:len(self.train_idxs[self.watch_train_client_id])]
 
         if self.args.dataset == 'cifar10':
             self.num_classes = 10
@@ -92,17 +79,7 @@ class IPRFederatedLearning(Experiment):
             self.num_classes = 10
             self.in_channels=1
             # self.dataset_size = 60000
-        elif self.args.dataset == 'dermnet':
-            self.num_classes = 23
-            # self.dataset_size = 19500
-        elif self.args.dataset == 'oct':
-            self.num_classes = 4
-            # self.dataset_size = 19500
-     
-        self.MIA_trainset_dir=[]
-        self.MIA_valset_dir=[]
-        self.MIA_trainset_dir_cos=[]
-        self.MIA_valset_dir_cos=[]
+
         self.train_idxs_cos=[]
         self.testset_idx=(50000+np.arange(10000)).astype(int) # 最后10000样本的作为test set
         self.testset_idx_cos=(50000+np.arange(1000)).astype(int)
@@ -127,8 +104,6 @@ class IPRFederatedLearning(Experiment):
         self.trainer_ul=TrainerPrivate(self.model_ul, self.device, self.dp, self.sigma,self.num_classes,self.ul_mode)
         self.tester = TesterPrivate(self.model, self.device)
 
-        self.makedirs_or_load()
-    
               
     def construct_model(self):
 
@@ -151,11 +126,7 @@ class IPRFederatedLearning(Experiment):
         val_ldr = DataLoader(self.test_set, batch_size=self.batch_size *2, shuffle=False, num_workers=4)
         test_ldr = DataLoader(self.test_set, batch_size=self.batch_size , shuffle=False, num_workers=0)
         ul_ldr = DataLoader(self.ul_test_set, batch_size=self.batch_size *2, shuffle=False, num_workers=4)
-        # for batch_idx, (x, y) in enumerate(ul_ldr):
-        #     for i in y:
-        #         if i <100:
-        #             print('error batch:',y)
-        #             break
+
         if args.num_ul_users == 0:
             ldr_path='/CIS32/zgx/Unlearning/FedUnlearning/log_test_time/ul_samples/ul_samples_backdoor/alexnet/cifar10/FedUL_dataloader_s1_10_32_0.01_1_2024_1_18.pkl'
             
@@ -265,7 +236,10 @@ class IPRFederatedLearning(Experiment):
 
             start = time.time()
             '''
-            开始训练, 对于每轮每个client先判断是否为ul_client, 再判断ul_mode是否为retrain, 以此选择训练方式
+            Start training. 
+            For each client in each round, first determine whether it is ul_client, 
+            and then determine whether ul_mode is retrain, 
+            so as to select the training method.
             '''
             for idx in tqdm(idxs_users, desc='Epoch:%d, lr:%f' % (self.epochs, self.lr)):
  
@@ -345,25 +319,6 @@ class IPRFederatedLearning(Experiment):
                         local_losses.append(local_loss)
                         local_models_per_epoch.append(copy.deepcopy(local_w))
                     
-                    
-
-                
-                # test_loss, test_acc=self.trainer.test(val_ldr)  
-
-                ## 计算model grads，处理量化，稀疏化和差分隐私
-                # model_grads={}
-                # for name, local_param in self.model.named_parameters():
-                #     if local_param.requires_grad == True:
-                #         model_grads[name]= local_w[name] - global_state_dict[name]
-                # local_ws.append(copy.deepcopy(model_grads))# 应该是计算local delta w
-                # local_ws.append(copy.deepcopy(local_w))
-                # local_losses.append(local_loss)
-
-            # if self.optim=="sgd":
-            #     self.lr=0.0001+lr_0 * (1 + math.cos(math.pi * epoch/ self.args.epochs)) / 2 
-            # else:
-            #     pass
-
             if self.optim=="sgd":
                 if self.args.lr_up=='common':
                     if self.epochs>101:
@@ -375,7 +330,8 @@ class IPRFederatedLearning(Experiment):
                         milestones=[275,400]
                     elif args.epochs==300:
                         milestones=[150,225]
-                    
+                    else:
+                        milestones=[int(args.epochs/3), int(args.epochs/3)*2]
                     if epoch in milestones:
                         self.lr *= 0.1
                 else:
@@ -410,7 +366,6 @@ class IPRFederatedLearning(Experiment):
             if 'federaser' in self.ul_mode or 'amnesiac_ul_samples' in self.ul_mode:
                 old_global_model_list.append(copy.deepcopy(self.model.state_dict()))
                 old_local_model_list.append(local_models_per_epoch)
-            
 
             end = time.time()
 
@@ -421,24 +376,20 @@ class IPRFederatedLearning(Experiment):
             sum_learn_time+=training_time_normal
             sum_unlearn_time+=training_time_ul
             '''
-            测试global model和ul_model效果
+            Test the effects of global model and ul_model
             '''
             if (epoch + 1) == self.epochs or (epoch + 1) % 1 == 0:
                 loss_train_mean, acc_train_mean = self.trainer.test(train_ldr)
                 loss_val_mean, acc_val_mean = self.trainer.test(val_ldr)
-                print('----test before ul ----')
-
                 loss_class_mean, acc_before_mean = self.trainer.test(ul_ldr)  #测试ul之前, global model对该类别样本的识别效果
-                print('------test end-----')
-                loss_test_mean, acc_test_mean = loss_val_mean, acc_val_mean
 
+                loss_test_mean, acc_test_mean = loss_val_mean, acc_val_mean
                 loss_val_ul__mean, acc_ul_val_mean = 0, 0
-                
                 loss_ul_mean, acc_ul_mean = 0, 0
 
                 """
-                需要对self.model_ul测试: 
-                测试 (W1+W2)/2 后的 ul_acc、val_acc
+                Need to test self.model_ul: 
+                test ul_acc, val_acc after (W1+W2)/2
                 """
                 if self.ul_mode != 'none':
                     if self.ul_mode.startswith('ul_samples'):  #self.ul_mode=='ul_samples' or self.ul_mode=='ul_samples_backdoor' or 'ul_samples_whole_client:
@@ -453,8 +404,8 @@ class IPRFederatedLearning(Experiment):
                             weight_ul=(1-alpha)*ul_state_dict['classifier.weight']
                             bias_ul=(1-alpha)*ul_state_dict['classifier.bias']
                             for idx in self.ul_clients:
-                                weight_ul= alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.weight']
-                                bias_ul= alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.bias']
+                                weight_ul += alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.weight']
+                                bias_ul += alpha / int(len(self.ul_clients)) * ul_state_dicts[idx]['classifier_ul.bias']
                             
                             ul_state_dict['classifier.weight']=copy.deepcopy(weight_ul)
                             ul_state_dict['classifier.bias']=copy.deepcopy(bias_ul)
@@ -468,14 +419,7 @@ class IPRFederatedLearning(Experiment):
 
                         self.model.load_state_dict(ul_state_dict)
                     elif self.ul_mode=='ul_class':
-                                                # ul_model除W2外替换为global model的参数
-                        # W2=[]
-                        # model_dict=self.model_ul.state_dict()
-                        # for layer in  model_dict.keys():
-                        #     if layer in global_state_dict.keys()==False:
-                        #             for idx in self.ul_clients:  
-
-                        #                 W2.append(ul_state_dicts[idx][layer]*1/int(len(self.ul_clients)))
+                        # ul_model除W2外替换为global model的参数
                         combined_state_dict=copy.deepcopy(self.w_t)
 
                         with torch.no_grad():
@@ -510,13 +454,13 @@ class IPRFederatedLearning(Experiment):
                        
 
                     """
-                    测试 基于Ul module替换W1之后的效果, 包括:
-                    1. 验证集acc
-                    2. ul_test_set的acc 
-                        (ul_samples时, ul_test_set=指定的Unlearn样本集合;
-                        ul_class时, ul_test_set=origin test_set中 target=ul_class_id的样本集合)
+                    Test the effect after replacing W1 based on Ul module, including:
+                    1. the acc on val set
+                    2. the acc on ul_test_set 
+                        (when ul_samples, ul_test_set is the set of unlearned samples;
+                        when ul_class, ul_test_set is the set of samples whose target=ul_class_id in origin test_set)
                     
-                    测试完毕后重新加载回 global model以备下一轮训练
+                    After testing, reload the global model back to prepare for the next round of training.
                     """
                     loss_val_ul__mean, acc_ul_val_mean = self.trainer.test(val_ldr)
                     
@@ -683,20 +627,7 @@ class IPRFederatedLearning(Experiment):
         if 'fedrecovery' in self.ul_mode:
             pass
 
-            
-        
         return self.logs, interval_time, self.logs['best_test_acc'], acc_test_mean, 
-
-
-    def _fed_avg_ldh(self,global_model, local_ws, client_weights, lr_outer ): # conduct fedavg with local delta w
-        w_avg=copy.deepcopy(global_model)
-        client_weights=1.0/len(local_ws)
-        # print('client_weights:',client_weights)
-        for k in w_avg.keys():
-            for i in range(0, len(local_ws)):
-                w_avg[k] += local_ws[i][k] * client_weights*lr_outer
-            self.w_t[k] = w_avg[k]
-        return w_avg
     
     def fed_avg(self, local_ws, client_weights, lr_outer):
 
@@ -736,7 +667,7 @@ def main(args):
     # args.save_dir=""
     # save_dir = args.save_dir
     save_dir=args.log_folder_name
-    fl = IPRFederatedLearning(args)
+    fl = FederatedLearning(args)
 
     logg, time, best_test_acc, test_acc = fl.train()                                         
                                              
