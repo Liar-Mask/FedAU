@@ -2,7 +2,8 @@
 
 ### This is the official pytorch implementation of the paper:
 
-- **Unlearning during Learning: An Efficient Federated Machine Unlearning Method**
+- **Unlearning during Learning: An Efficient Federated Machine Unlearning Method**（[PDF Link](https://arxiv.org/pdf/2405.15474)）
+
 - **Accepted by IJCAI 2024**
 
 
